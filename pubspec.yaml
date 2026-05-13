@@ -18,6 +18,7 @@ dependencies:
   shared_preferences: ^2.5.3
   confetti: ^0.8.0
   audioplayers: ^6.6.0
+  wakelock_plus: ^1.5.2
 
 dev_dependencies:
   flutter_test:

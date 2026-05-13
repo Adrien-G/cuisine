@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../models/recipe.dart';
 
@@ -148,10 +149,12 @@ class _CookingScreenState extends State<CookingScreen> {
       duration: const Duration(seconds: 10),
     );
     timerAudioPlayer = AudioPlayer();
+    unawaited(WakelockPlus.enable());
   }
 
   @override
   void dispose() {
+    unawaited(WakelockPlus.disable());
     timerTicker?.cancel();
     timerAlertStopTimer?.cancel();
     timerAudioPlayer.dispose();
