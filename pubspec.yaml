@@ -1,0 +1,27 @@
+name: cuisine
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  html: ^0.15.6
+  http: ^1.6.0
+  share_plus: 11.1.0
+  file_picker: 11.0.2
+  path_provider: ^2.1.5
+  cross_file: ^0.3.4+2
+  shared_preferences: ^2.5.3
+  confetti: ^0.8.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  
+flutter:
+  uses-material-design: true
