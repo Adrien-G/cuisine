@@ -45,6 +45,13 @@ class CookingTimer {
   }
 }
 
+class CookingTimerSuggestion {
+  const CookingTimerSuggestion({required this.duration, required this.label});
+
+  final Duration duration;
+  final String label;
+}
+
 class CookingScreen extends StatefulWidget {
   const CookingScreen({super.key, required this.recipe});
 
@@ -78,7 +85,9 @@ class _CookingScreenState extends State<CookingScreen> {
           .toList();
     }
 
-    final hasBulletList = RegExp(r'(^|\n)\s*[-•*]\s+').hasMatch(cleanedSteps);
+    final hasBulletList = RegExp(
+      r'(^|\n)\s*[-\u2022*]\s+',
+    ).hasMatch(cleanedSteps);
 
     if (hasBulletList) {
       return [cleanPreparationStepBlock(cleanedSteps)];
@@ -147,7 +156,7 @@ class _CookingScreenState extends State<CookingScreen> {
   String cleanPreparationStep(String value) {
     return value
         .trim()
-        .replaceFirst(RegExp(r'^[-•*]\s*'), '')
+        .replaceFirst(RegExp(r'^[-\u2022*]\s*'), '')
         .replaceFirst(RegExp(r'^\d+[.)]\s*'), '')
         .trim();
   }
@@ -263,6 +272,130 @@ class _CookingScreenState extends State<CookingScreen> {
     }
   }
 
+  void startSuggestedTimer(CookingTimerSuggestion suggestion) {
+    addOrUpdateTimer(duration: suggestion.duration, label: suggestion.label);
+  }
+
+  List<CookingTimerSuggestion> getTimerSuggestionsForStep({
+    required CookingStep step,
+    required int stepNumber,
+  }) {
+    final suggestions = <CookingTimerSuggestion>[];
+    final seenDurations = <int>{};
+
+    void addSuggestion(Duration duration) {
+      final totalSeconds = duration.inSeconds;
+
+      if (totalSeconds <= 0 || duration.inHours > 8) {
+        return;
+      }
+
+      if (!seenDurations.add(totalSeconds)) {
+        return;
+      }
+
+      suggestions.add(
+        CookingTimerSuggestion(
+          duration: duration,
+          label: getSuggestedTimerLabel(step.text, stepNumber),
+        ),
+      );
+    }
+
+    final compactHourPattern = RegExp(
+      r'\b(\d{1,2})\s*h\s*(\d{1,2})?\b',
+      caseSensitive: false,
+    );
+
+    for (final match in compactHourPattern.allMatches(step.text)) {
+      final hours = int.tryParse(match.group(1) ?? '') ?? 0;
+      final minutes = int.tryParse(match.group(2) ?? '') ?? 0;
+
+      addSuggestion(Duration(hours: hours, minutes: minutes));
+    }
+
+    final hourMinutePattern = RegExp(
+      r'\b(?:(\d{1,2})\s*(?:heure|heures)\s*)?'
+      r'(\d{1,3})\s*(?:min|mn|minute|minutes)\b',
+      caseSensitive: false,
+    );
+
+    for (final match in hourMinutePattern.allMatches(step.text)) {
+      final hours = int.tryParse(match.group(1) ?? '') ?? 0;
+      final minutes = int.tryParse(match.group(2) ?? '') ?? 0;
+
+      addSuggestion(Duration(hours: hours, minutes: minutes));
+    }
+
+    return suggestions.take(4).toList();
+  }
+
+  String getSuggestedTimerLabel(String stepText, int stepNumber) {
+    final normalizedText = normalizeTimerSuggestionText(stepText);
+
+    if (normalizedText.contains('four')) {
+      return 'Four';
+    }
+
+    if (normalizedText.contains('pate') ||
+        normalizedText.contains('spaghetti')) {
+      return 'Pâtes';
+    }
+
+    if (normalizedText.contains('riz')) {
+      return 'Riz';
+    }
+
+    if (normalizedText.contains('repos') ||
+        normalizedText.contains('reposer')) {
+      return 'Repos';
+    }
+
+    if (normalizedText.contains('cuisson') ||
+        normalizedText.contains('cuire') ||
+        normalizedText.contains('mijoter')) {
+      return 'Cuisson';
+    }
+
+    return 'Étape $stepNumber';
+  }
+
+  String normalizeTimerSuggestionText(String value) {
+    final buffer = StringBuffer();
+
+    for (final rune in value.toLowerCase().runes) {
+      switch (rune) {
+        case 0x00E0:
+        case 0x00E2:
+        case 0x00E4:
+          buffer.write('a');
+        case 0x00E7:
+          buffer.write('c');
+        case 0x00E8:
+        case 0x00E9:
+        case 0x00EA:
+        case 0x00EB:
+          buffer.write('e');
+        case 0x00EE:
+        case 0x00EF:
+          buffer.write('i');
+        case 0x00F4:
+        case 0x00F6:
+          buffer.write('o');
+        case 0x0153:
+          buffer.write('oe');
+        case 0x00F9:
+        case 0x00FB:
+        case 0x00FC:
+          buffer.write('u');
+        default:
+          buffer.writeCharCode(rune);
+      }
+    }
+
+    return buffer.toString();
+  }
+
   Future<void> openTimerSettings({CookingTimer? timer}) async {
     final settings = await showDialog<_TimerSettings>(
       context: context,
@@ -347,7 +480,7 @@ class _CookingScreenState extends State<CookingScreen> {
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          title: const Text('🎉 Bravo !'),
+          title: const Text('Bravo !'),
           content: Text('La recette "${widget.recipe.name}" est terminée.'),
           actions: [
             FilledButton(
@@ -373,6 +506,7 @@ class _CookingScreenState extends State<CookingScreen> {
   @override
   Widget build(BuildContext context) {
     final steps = cookingSteps;
+    final currentStep = hasSteps ? steps[currentStepIndex] : null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Préparation')),
@@ -396,8 +530,13 @@ class _CookingScreenState extends State<CookingScreen> {
                 else
                   _CurrentStepCard(
                     stepNumber: currentStepIndex + 1,
-                    stepTitle: steps[currentStepIndex].title,
-                    stepText: steps[currentStepIndex].text,
+                    stepTitle: currentStep!.title,
+                    stepText: currentStep.text,
+                    timerSuggestions: getTimerSuggestionsForStep(
+                      step: currentStep,
+                      stepNumber: currentStepIndex + 1,
+                    ),
+                    onStartSuggestedTimer: startSuggestedTimer,
                   ),
               ],
             ),
@@ -589,11 +728,15 @@ class _CurrentStepCard extends StatelessWidget {
     required this.stepNumber,
     required this.stepTitle,
     required this.stepText,
+    required this.timerSuggestions,
+    required this.onStartSuggestedTimer,
   });
 
   final int stepNumber;
   final String stepText;
   final String stepTitle;
+  final List<CookingTimerSuggestion> timerSuggestions;
+  final void Function(CookingTimerSuggestion suggestion) onStartSuggestedTimer;
 
   @override
   Widget build(BuildContext context) {
@@ -645,9 +788,60 @@ class _CurrentStepCard extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
             ),
+            if (timerSuggestions.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final suggestion in timerSuggestions)
+                    _TimerSuggestionChip(
+                      suggestion: suggestion,
+                      onPressed: () {
+                        onStartSuggestedTimer(suggestion);
+                      },
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TimerSuggestionChip extends StatelessWidget {
+  const _TimerSuggestionChip({
+    required this.suggestion,
+    required this.onPressed,
+  });
+
+  final CookingTimerSuggestion suggestion;
+  final VoidCallback onPressed;
+
+  String formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+
+    if (hours > 0 && minutes > 0) {
+      return '${hours}h${minutes.toString().padLeft(2, '0')}';
+    }
+
+    if (hours > 0) {
+      return '${hours}h';
+    }
+
+    return '${duration.inMinutes} min';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      avatar: const Icon(Icons.timer_outlined, size: 18),
+      label: Text(formatDuration(suggestion.duration)),
+      onPressed: onPressed,
+      visualDensity: VisualDensity.compact,
     );
   }
 }
@@ -860,7 +1054,7 @@ class _CookingTimerChip extends StatelessWidget {
                 ),
               ),
               IconButton(
-                tooltip: 'R�initialiser',
+                tooltip: 'Réinitialiser',
                 onPressed: onReset,
                 icon: const Icon(Icons.refresh),
                 visualDensity: VisualDensity.compact,
@@ -884,10 +1078,10 @@ class _CookingTimerChip extends StatelessWidget {
     }
 
     if (timer.hasFinished) {
-      return 'Termin�';
+      return 'Terminé';
     }
 
-    return 'Pr�t';
+    return 'Prêt';
   }
 }
 
