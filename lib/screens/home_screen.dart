@@ -452,6 +452,7 @@ class _HomeScreenState extends State<HomeScreen> {
           checkedShoppingItems: cuisineController.checkedShoppingItems,
           onToggleItem: toggleShoppingItem,
           onGoToPlanning: goToPlanning,
+          onEditRecipe: openEditRecipeScreen,
         );
       default:
         return RecipesScreen(
