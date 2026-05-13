@@ -153,18 +153,18 @@ class RecipeDetailScreen extends StatelessWidget {
               hasSeasonalIngredients: seasonalMatches.isNotEmpty,
             ),
             const SizedBox(height: 16),
-_SectionCard(
-  title: 'Résumé',
-  icon: Icons.dashboard_outlined,
-  child: _RecipeSummaryContent(
-  recipe: recipe,
-  seasonality: seasonality,
-  monthName: monthName,
-  onEditRecipe: () async {
-    await editRecipe(context);
-  },
-),
-),
+            _SectionCard(
+              title: 'Résumé',
+              icon: Icons.dashboard_outlined,
+              child: _RecipeSummaryContent(
+                recipe: recipe,
+                seasonality: seasonality,
+                monthName: monthName,
+                onEditRecipe: () async {
+                  await editRecipe(context);
+                },
+              ),
+            ),
             if (seasonalMatches.isNotEmpty)
               _SectionCard(
                 title: 'De saison en $monthName',
@@ -305,12 +305,7 @@ class _RecipeHeader extends StatelessWidget {
                   color: colorScheme.surface,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  recipe.emoji,
-                  style: const TextStyle(
-                    fontSize: 34,
-                  ),
-                ),
+                child: Text(recipe.emoji, style: const TextStyle(fontSize: 34)),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -328,40 +323,40 @@ class _RecipeHeader extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-    Text(
-      '${recipe.ingredients.length} ingrédient(s)',
-      style: TextStyle(
-        color: colorScheme.onPrimaryContainer,
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-      ),
-    ),
-    if (recipe.timeSummaryText.isNotEmpty) ...[
-      const SizedBox(height: 4),
-      Text(
-        recipe.timeSummaryText,
-        style: TextStyle(
-          color: colorScheme.onPrimaryContainer,
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    ],
-    if (recipe.difficultyText.isNotEmpty) ...[
-      const SizedBox(height: 4),
-      Text(
-        recipe.difficultyText,
-        style: TextStyle(
-          color: colorScheme.onPrimaryContainer,
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    ],
-  ],
-),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${recipe.ingredients.length} ingrédient(s)',
+                style: TextStyle(
+                  color: colorScheme.onPrimaryContainer,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (recipe.timeSummaryText.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  recipe.timeSummaryText,
+                  style: TextStyle(
+                    color: colorScheme.onPrimaryContainer,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+              if (recipe.difficultyText.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  recipe.difficultyText,
+                  style: TextStyle(
+                    color: colorScheme.onPrimaryContainer,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ],
+          ),
           if (hasSeasonalIngredients) ...[
             const SizedBox(height: 10),
             Align(
@@ -390,6 +385,7 @@ class _RecipeHeader extends StatelessWidget {
     );
   }
 }
+
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
     required this.title,
@@ -531,7 +527,27 @@ class _IngredientRow extends StatelessWidget {
 }
 
 List<String> splitPreparationSteps(String steps) {
-  return steps
+  final cleanedSteps = steps.trim();
+
+  if (cleanedSteps.isEmpty || cleanedSteps == 'À compléter.') {
+    return [];
+  }
+
+  if (RegExp(r'\n\s*\n').hasMatch(cleanedSteps)) {
+    return cleanedSteps
+        .split(RegExp(r'\n\s*\n'))
+        .map(cleanPreparationStepBlock)
+        .where((step) => step.isNotEmpty && step != 'À compléter.')
+        .toList();
+  }
+
+  final hasBulletList = RegExp(r'(^|\n)\s*[-•*]\s+').hasMatch(cleanedSteps);
+
+  if (hasBulletList) {
+    return [cleanPreparationStepBlock(cleanedSteps)];
+  }
+
+  return cleanedSteps
       .split('\n')
       .map(cleanPreparationStep)
       .where((step) => step.isNotEmpty && step != 'À compléter.')
@@ -544,6 +560,10 @@ String cleanPreparationStep(String value) {
       .replaceFirst(RegExp(r'^[-•*]\s*'), '')
       .replaceFirst(RegExp(r'^\d+[.)]\s*'), '')
       .trim();
+}
+
+String cleanPreparationStepBlock(String value) {
+  return value.trim().replaceFirst(RegExp(r'^\d+[.)]\s*'), '').trim();
 }
 
 class _PreparationStepsList extends StatelessWidget {
@@ -628,11 +648,11 @@ class _PreparationStepRow extends StatelessWidget {
 
 class _RecipeSummaryContent extends StatelessWidget {
   const _RecipeSummaryContent({
-  required this.recipe,
-  required this.seasonality,
-  required this.monthName,
-  required this.onEditRecipe,
-});
+    required this.recipe,
+    required this.seasonality,
+    required this.monthName,
+    required this.onEditRecipe,
+  });
 
   final Recipe recipe;
   final RecipeSeasonality seasonality;
@@ -645,9 +665,7 @@ class _RecipeSummaryContent extends StatelessWidget {
       cookingModeTags.contains,
     );
 
-    final recipeTypeTagsForRecipe = recipe.tags.where(
-      recipeTypeTags.contains,
-    );
+    final recipeTypeTagsForRecipe = recipe.tags.where(recipeTypeTags.contains);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -658,14 +676,11 @@ class _RecipeSummaryContent extends StatelessWidget {
           children: [
             if (cookingModeTagsForRecipe.isNotEmpty)
               for (final tag in cookingModeTagsForRecipe)
-                _CompactSummaryChip(
-                  icon: Icons.check,
-                  label: tag,
-                )
+                _CompactSummaryChip(icon: Icons.check, label: tag)
             else
               _MissingSummaryChip(
                 label: 'À compléter',
-                  onPressed: onEditRecipe,
+                onPressed: onEditRecipe,
               ),
           ],
         ),
@@ -676,14 +691,11 @@ class _RecipeSummaryContent extends StatelessWidget {
           children: [
             if (recipeTypeTagsForRecipe.isNotEmpty)
               for (final tag in recipeTypeTagsForRecipe)
-                _CompactSummaryChip(
-                  icon: Icons.check,
-                  label: tag,
-                )
+                _CompactSummaryChip(icon: Icons.check, label: tag)
             else
               _MissingSummaryChip(
                 label: 'À compléter',
-                  onPressed: onEditRecipe,
+                onPressed: onEditRecipe,
               ),
           ],
         ),
@@ -691,6 +703,7 @@ class _RecipeSummaryContent extends StatelessWidget {
     );
   }
 }
+
 class _CompactSummaryRow extends StatelessWidget {
   const _CompactSummaryRow({
     required this.icon,
@@ -742,10 +755,7 @@ class _CompactSummaryChip extends StatelessWidget {
 }
 
 class _MissingSummaryChip extends StatelessWidget {
-  const _MissingSummaryChip({
-    required this.label,
-    required this.onPressed,
-  });
+  const _MissingSummaryChip({required this.label, required this.onPressed});
 
   final String label;
   final Future<void> Function() onPressed;
@@ -755,11 +765,7 @@ class _MissingSummaryChip extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return ActionChip(
-      avatar: Icon(
-        Icons.edit_outlined,
-        size: 16,
-        color: colorScheme.primary,
-      ),
+      avatar: Icon(Icons.edit_outlined, size: 16, color: colorScheme.primary),
       label: Text(label),
       visualDensity: VisualDensity.compact,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

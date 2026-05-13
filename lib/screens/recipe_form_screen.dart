@@ -134,7 +134,27 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   }
 
   List<String> splitPreparationSteps(String steps) {
-    return steps
+    final cleanedSteps = steps.trim();
+
+    if (cleanedSteps.isEmpty || cleanedSteps == 'À compléter.') {
+      return [];
+    }
+
+    if (RegExp(r'\n\s*\n').hasMatch(cleanedSteps)) {
+      return cleanedSteps
+          .split(RegExp(r'\n\s*\n'))
+          .map(cleanPreparationStepBlock)
+          .where((step) => step.isNotEmpty && step != 'À compléter.')
+          .toList();
+    }
+
+    final hasBulletList = RegExp(r'(^|\n)\s*[-•*]\s+').hasMatch(cleanedSteps);
+
+    if (hasBulletList) {
+      return [cleanPreparationStepBlock(cleanedSteps)];
+    }
+
+    return cleanedSteps
         .split('\n')
         .map(cleanPreparationStep)
         .where((step) => step.isNotEmpty && step != 'À compléter.')
@@ -149,6 +169,10 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         .trim();
   }
 
+  String cleanPreparationStepBlock(String value) {
+    return value.trim().replaceFirst(RegExp(r'^\d+[.)]\s*'), '').trim();
+  }
+
   List<String> buildPreparationSteps() {
     return stepControllers
         .map((controller) => controller.text.trim())
@@ -157,7 +181,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   }
 
   String buildPreparationText() {
-    return buildPreparationSteps().join('\n');
+    return buildPreparationSteps().join('\n\n');
   }
 
   void movePreparationStep(int oldIndex, int newIndex) {
@@ -220,19 +244,19 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         .toList();
 
     final recipe = Recipe(
-  id: isEditing
-      ? widget.initialRecipe!.id
-      : DateTime.now().millisecondsSinceEpoch.toString(),
-  name: nameController.text.trim(),
-  ingredients: ingredients,
-  steps: preparationSteps.join('\n'),
-  tags: buildOrderedTags(),
-  prepTimeMinutes: parseTime(prepTimeController.text),
-  cookTimeMinutes: parseTime(cookTimeController.text),
-  difficulty: selectedDifficulty,
-  emoji: selectedEmoji,
-  isFavorite: widget.initialRecipe?.isFavorite ?? false,
-);
+      id: isEditing
+          ? widget.initialRecipe!.id
+          : DateTime.now().millisecondsSinceEpoch.toString(),
+      name: nameController.text.trim(),
+      ingredients: ingredients,
+      steps: preparationSteps.join('\n\n'),
+      tags: buildOrderedTags(),
+      prepTimeMinutes: parseTime(prepTimeController.text),
+      cookTimeMinutes: parseTime(cookTimeController.text),
+      difficulty: selectedDifficulty,
+      emoji: selectedEmoji,
+      isFavorite: widget.initialRecipe?.isFavorite ?? false,
+    );
     Navigator.of(context).pop(recipe);
   }
 

@@ -34,7 +34,27 @@ class _CookingScreenState extends State<CookingScreen> {
   bool hasTimerFinished = false;
 
   List<String> get recipePreparationSteps {
-    return widget.recipe.steps
+    final cleanedSteps = widget.recipe.steps.trim();
+
+    if (cleanedSteps.isEmpty || cleanedSteps == 'À compléter.') {
+      return [];
+    }
+
+    if (RegExp(r'\n\s*\n').hasMatch(cleanedSteps)) {
+      return cleanedSteps
+          .split(RegExp(r'\n\s*\n'))
+          .map(cleanPreparationStepBlock)
+          .where((step) => step.isNotEmpty && step != 'À compléter.')
+          .toList();
+    }
+
+    final hasBulletList = RegExp(r'(^|\n)\s*[-•*]\s+').hasMatch(cleanedSteps);
+
+    if (hasBulletList) {
+      return [cleanPreparationStepBlock(cleanedSteps)];
+    }
+
+    return cleanedSteps
         .split('\n')
         .map(cleanPreparationStep)
         .where((step) => step.isNotEmpty && step != 'À compléter.')
@@ -100,6 +120,10 @@ class _CookingScreenState extends State<CookingScreen> {
         .replaceFirst(RegExp(r'^[-•*]\s*'), '')
         .replaceFirst(RegExp(r'^\d+[.)]\s*'), '')
         .trim();
+  }
+
+  String cleanPreparationStepBlock(String value) {
+    return value.trim().replaceFirst(RegExp(r'^\d+[.)]\s*'), '').trim();
   }
 
   void setTimer({required Duration duration, required String label}) {
