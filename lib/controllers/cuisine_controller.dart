@@ -2,7 +2,9 @@ import 'dart:math';
 
 import '../data/meal_slots.dart';
 import '../data/planning_entries.dart';
+import '../models/ingredient.dart';
 import '../models/recipe.dart';
+import '../services/recipe_text_parser.dart';
 import '../services/seasonality_service.dart';
 import '../services/storage_service.dart';
 
@@ -18,6 +20,18 @@ class FillPlanningResult {
   final bool hasRecipes;
 
   bool get isPlanningAlreadyFull => hasRecipes && addedMealsCount == 0;
+}
+
+class IngredientCategoryMaintenanceResult {
+  const IngredientCategoryMaintenanceResult({
+    required this.updatedIngredientsCount,
+    required this.updatedRecipesCount,
+  });
+
+  final int updatedIngredientsCount;
+  final int updatedRecipesCount;
+
+  bool get hasUpdates => updatedIngredientsCount > 0;
 }
 
 class CuisineController {
@@ -124,6 +138,100 @@ class CuisineController {
     checkedShoppingItems.clear();
 
     await saveData();
+  }
+
+  int countSafeIngredientCategoryUpdates() {
+    var count = 0;
+
+    for (final recipe in recipes) {
+      for (final ingredient in recipe.ingredients) {
+        if (_shouldUpdateIngredientCategorySafely(ingredient)) {
+          count++;
+        }
+      }
+    }
+
+    return count;
+  }
+
+  Future<IngredientCategoryMaintenanceResult>
+  updateSafeIngredientCategories() async {
+    var updatedIngredientsCount = 0;
+    var updatedRecipesCount = 0;
+
+    for (var index = 0; index < recipes.length; index++) {
+      final recipe = recipes[index];
+      var recipeWasUpdated = false;
+
+      final updatedIngredients = recipe.ingredients.map((ingredient) {
+        if (!_shouldUpdateIngredientCategorySafely(ingredient)) {
+          return ingredient;
+        }
+
+        recipeWasUpdated = true;
+        updatedIngredientsCount++;
+
+        return ingredient.copyWith(
+          category: RecipeTextParser.guessCategory(ingredient.name),
+        );
+      }).toList();
+
+      if (recipeWasUpdated) {
+        updatedRecipesCount++;
+        recipes[index] = recipe.copyWith(ingredients: updatedIngredients);
+      }
+    }
+
+    if (updatedIngredientsCount > 0) {
+      checkedShoppingItems.clear();
+      await saveData();
+    }
+
+    return IngredientCategoryMaintenanceResult(
+      updatedIngredientsCount: updatedIngredientsCount,
+      updatedRecipesCount: updatedRecipesCount,
+    );
+  }
+
+  bool _shouldUpdateIngredientCategorySafely(Ingredient ingredient) {
+    final currentCategory = ingredient.category.trim();
+    final suggestedCategory = RecipeTextParser.guessCategory(ingredient.name);
+
+    if (currentCategory == suggestedCategory ||
+        suggestedCategory != 'Épicerie') {
+      return false;
+    }
+
+    return _isKnownPantryMaintenanceIngredient(ingredient.name);
+  }
+
+  bool _isKnownPantryMaintenanceIngredient(String ingredientName) {
+    final normalizedName = _normalizeIngredientForMaintenance(ingredientName);
+
+    return RegExp(r'(^| )(lait|oeuf)( |s|x|$)').hasMatch(normalizedName);
+  }
+
+  String _normalizeIngredientForMaintenance(String value) {
+    return value
+        .toLowerCase()
+        .trim()
+        .replaceAll('œ', 'oe')
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('ë', 'e')
+        .replaceAll('à', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('ù', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('î', 'i')
+        .replaceAll('ï', 'i')
+        .replaceAll('ô', 'o')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   Future<void> deleteRecipe(Recipe recipeToDelete) async {

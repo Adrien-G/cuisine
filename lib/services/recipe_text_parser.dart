@@ -68,7 +68,6 @@ class RecipeTextParser {
       name: name,
       ingredients: ingredients,
       steps: steps.isEmpty ? 'À compléter.' : steps,
-
     );
   }
 
@@ -82,10 +81,10 @@ class RecipeTextParser {
 
     if (quantityMatch == null) {
       return Ingredient(
-  name: line,
-  category: guessCategory(line),
-  includeInShoppingList: !shouldAutoExcludeFromShoppingList(line),
-);
+        name: line,
+        category: guessCategory(line),
+        includeInShoppingList: !shouldAutoExcludeFromShoppingList(line),
+      );
     }
 
     final quantity = double.tryParse(
@@ -106,20 +105,21 @@ class RecipeTextParser {
     final ingredientName = _cleanIngredientName(remainingText);
 
     return Ingredient(
-  name: ingredientName,
-  quantity: quantity,
-  unit: ingredientUnits.contains(unit) ? unit : noIngredientUnit,
-  category: guessCategory(ingredientName),
-  includeInShoppingList: !shouldAutoExcludeFromShoppingList(ingredientName),
-);
+      name: ingredientName,
+      quantity: quantity,
+      unit: ingredientUnits.contains(unit) ? unit : noIngredientUnit,
+      category: guessCategory(ingredientName),
+      includeInShoppingList: !shouldAutoExcludeFromShoppingList(ingredientName),
+    );
   }
 
   static String guessCategory(String ingredientName) {
-    final normalizedName = _normalizeText(ingredientName);
+    final normalizedName = _normalizeIngredientForCategory(ingredientName);
 
     const fruitsAndVegetables = [
       'tomate',
       'salade',
+      'laitue',
       'carotte',
       'courgette',
       'aubergine',
@@ -141,19 +141,44 @@ class RecipeTextParser {
       'brocoli',
       'chou',
       'epinard',
+      'haricot vert',
       'rhubarbe',
     ];
 
-    const fresh = [
+    const pantry = [
       'lait',
+      'lait de coco',
+      'oeuf',
+      'œuf',
+      'farine',
+      'sucre',
+      'sel',
+      'poivre',
+      'huile',
+      'vinaigre',
+      'riz',
+      'pate',
+      'pates',
+      'semoule',
+      'quinoa',
+      'lentille',
+      'pois chiche',
+      'haricot rouge',
+      'conserve',
+      'chapelure',
+      'moutarde',
+      'mayonnaise',
+      'ketchup',
+      'sauce soja',
+    ];
+
+    const fresh = [
       'creme',
       'crème',
       'yaourt',
       'fromage',
       'parmesan',
       'beurre',
-      'oeuf',
-      'œuf',
       'mozzarella',
       'emmental',
       'cheddar',
@@ -165,7 +190,11 @@ class RecipeTextParser {
       'boeuf',
       'bœuf',
       'porc',
+      'veau',
+      'agneau',
       'jambon',
+      'lardon',
+      'chorizo',
       'saumon',
       'thon',
       'cabillaud',
@@ -181,42 +210,58 @@ class RecipeTextParser {
       'biere',
       'bière',
       'soda',
+      'sirop',
       'boisson',
     ];
 
-    const frozen = [
-      'surgelé',
-      'surgele',
-      'glace',
-    ];
+    const frozen = ['surgelé', 'surgele', 'glace'];
 
-    if (_containsAny(normalizedName, fruitsAndVegetables)) {
+    if (_containsAnyIngredientTerm(normalizedName, frozen)) {
+      return 'Surgelés';
+    }
+
+    if (_containsAnyIngredientTerm(normalizedName, fruitsAndVegetables)) {
       return 'Fruits & légumes';
     }
 
-    if (_containsAny(normalizedName, fresh)) {
+    if (_containsAnyIngredientTerm(normalizedName, pantry)) {
+      return 'Épicerie';
+    }
+
+    if (_containsAnyIngredientTerm(normalizedName, fresh)) {
       return 'Frais';
     }
 
-    if (_containsAny(normalizedName, meatFish)) {
+    if (_containsAnyIngredientTerm(normalizedName, meatFish)) {
       return 'Viandes / poissons';
     }
 
-    if (_containsAny(normalizedName, drinks)) {
+    if (_containsAnyIngredientTerm(normalizedName, drinks)) {
       return 'Boissons';
-    }
-
-    if (_containsAny(normalizedName, frozen)) {
-      return 'Surgelés';
     }
 
     return 'Épicerie';
   }
 
-  static bool _containsAny(String value, List<String> candidates) {
+  static bool _containsAnyIngredientTerm(
+    String value,
+    List<String> candidates,
+  ) {
     return candidates.any((candidate) {
-      return value.contains(_normalizeText(candidate));
+      final normalizedCandidate = _normalizeIngredientForCategory(candidate);
+
+      return RegExp(
+        '(^| )${RegExp.escape(normalizedCandidate)}( |s|x|\$)',
+      ).hasMatch(value);
     });
+  }
+
+  static String _normalizeIngredientForCategory(String value) {
+    return _normalizeText(value)
+        .replaceAll('œ', 'oe')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   static bool _looksLikeIngredient(String line) {
@@ -228,38 +273,39 @@ class RecipeTextParser {
     ).hasMatch(cleanedLine);
   }
 
-static bool _isIngredientsHeading(String normalizedLine) {
-  final heading = _normalizeHeading(normalizedLine);
+  static bool _isIngredientsHeading(String normalizedLine) {
+    final heading = _normalizeHeading(normalizedLine);
 
-  return heading == 'ingredients' ||
-      heading == 'ingredient' ||
-      heading.startsWith('ingredients pour') ||
-      heading.startsWith('ingredient pour');
-}
+    return heading == 'ingredients' ||
+        heading == 'ingredient' ||
+        heading.startsWith('ingredients pour') ||
+        heading.startsWith('ingredient pour');
+  }
 
+  static bool _isStepsHeading(String normalizedLine) {
+    final heading = _normalizeHeading(normalizedLine);
 
-static bool _isStepsHeading(String normalizedLine) {
-  final heading = _normalizeHeading(normalizedLine);
+    return heading == 'preparation' ||
+        heading == 'preparations' ||
+        heading == 'etapes' ||
+        heading == 'instructions' ||
+        heading == 'procede' ||
+        heading == 'procedure' ||
+        heading == 'mode de preparation' ||
+        heading == 'recette' ||
+        heading.startsWith('preparation ') ||
+        heading.startsWith('etapes ') ||
+        heading.startsWith('instructions ');
+  }
 
-  return heading == 'preparation' ||
-      heading == 'preparations' ||
-      heading == 'etapes' ||
-      heading == 'instructions' ||
-      heading == 'procede' ||
-      heading == 'procedure' ||
-      heading == 'mode de preparation' ||
-      heading == 'recette' ||
-      heading.startsWith('preparation ') ||
-      heading.startsWith('etapes ') ||
-      heading.startsWith('instructions ');
-}
-static String _normalizeHeading(String value) {
-  return value
-      .trim()
-      .replaceAll(RegExp(r'\s*:\s*$'), '')
-      .replaceAll(RegExp(r'\s*-\s*$'), '')
-      .trim();
-}
+  static String _normalizeHeading(String value) {
+    return value
+        .trim()
+        .replaceAll(RegExp(r'\s*:\s*$'), '')
+        .replaceAll(RegExp(r'\s*-\s*$'), '')
+        .trim();
+  }
+
   static String _cleanLine(String line) {
     return line
         .trim()
@@ -274,25 +320,19 @@ static String _normalizeHeading(String value) {
         .trim();
   }
 
-static String _cleanIngredientName(String value) {
-  return value
-      .trim()
-      .replaceFirst(
-        RegExp(
-          r"^(de\s+l[’']\s*|d[’']\s*|de\s+la\s+|de\s+l\s+|du\s+|des\s+|de\s+)",
-          caseSensitive: false,
-        ),
-        '',
-      )
-      .replaceFirst(
-        RegExp(
-          r"^l[’']\s*",
-          caseSensitive: false,
-        ),
-        '',
-      )
-      .trim();
-}
+  static String _cleanIngredientName(String value) {
+    return value
+        .trim()
+        .replaceFirst(
+          RegExp(
+            r"^(de\s+l[’']\s*|d[’']\s*|de\s+la\s+|de\s+l\s+|du\s+|des\s+|de\s+)",
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceFirst(RegExp(r"^l[’']\s*", caseSensitive: false), '')
+        .trim();
+  }
 
   static _UnitParseResult _extractUnit(String text) {
     final normalizedText = _normalizeText(text);
@@ -371,13 +411,13 @@ static String _cleanIngredientName(String value) {
       }
     }
 
-    return _UnitParseResult(
-      unit: '',
-      remainingText: text,
-    );
+    return _UnitParseResult(unit: '', remainingText: text);
   }
 
-  static int _matchingPrefixLength(String originalText, String normalizedAlias) {
+  static int _matchingPrefixLength(
+    String originalText,
+    String normalizedAlias,
+  ) {
     final words = originalText.trim().split(RegExp(r'\s+'));
     final buffer = StringBuffer();
 
@@ -418,11 +458,7 @@ static String _cleanIngredientName(String value) {
   }
 }
 
-enum _RecipeTextSection {
-  unknown,
-  ingredients,
-  steps,
-}
+enum _RecipeTextSection { unknown, ingredients, steps }
 
 class _UnitAlias {
   const _UnitAlias(this.alias, this.unit);
@@ -432,10 +468,7 @@ class _UnitAlias {
 }
 
 class _UnitParseResult {
-  const _UnitParseResult({
-    required this.unit,
-    required this.remainingText,
-  });
+  const _UnitParseResult({required this.unit, required this.remainingText});
 
   final String unit;
   final String remainingText;

@@ -16,6 +16,8 @@ class ShoppingListScreen extends StatefulWidget {
     required this.onToggleItem,
     required this.onGoToPlanning,
     required this.onEditRecipe,
+    required this.ingredientCategoryUpdateCount,
+    required this.onUpdateIngredientCategories,
   });
 
   final List<Recipe> recipes;
@@ -24,6 +26,8 @@ class ShoppingListScreen extends StatefulWidget {
   final Future<void> Function(String ingredient, bool isChecked) onToggleItem;
   final VoidCallback onGoToPlanning;
   final Future<void> Function(Recipe recipe) onEditRecipe;
+  final int ingredientCategoryUpdateCount;
+  final Future<void> Function() onUpdateIngredientCategories;
 
   @override
   State<ShoppingListScreen> createState() => _ShoppingListScreenState();
@@ -416,6 +420,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
           showOnlyCategoryConflicts: showOnlyCategoryConflicts,
           isStoreModeEnabled: isStoreModeEnabled,
           hideCheckedItems: hideCheckedItems,
+          ingredientCategoryUpdateCount: widget.ingredientCategoryUpdateCount,
           onToggleItemsToCheckFilter: itemsToCheckCount == 0
               ? null
               : () {
@@ -446,6 +451,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                   });
                 }
               : null,
+          onUpdateIngredientCategories:
+              widget.ingredientCategoryUpdateCount == 0
+              ? null
+              : widget.onUpdateIngredientCategories,
         ),
         const SizedBox(height: 16),
         if (visibleShoppingItems.isEmpty)
@@ -485,10 +494,12 @@ class _ShoppingHeader extends StatelessWidget {
     required this.showOnlyCategoryConflicts,
     required this.isStoreModeEnabled,
     required this.hideCheckedItems,
+    required this.ingredientCategoryUpdateCount,
     required this.onToggleItemsToCheckFilter,
     required this.onToggleCategoryConflictFilter,
     required this.onToggleStoreMode,
     required this.onToggleHideCheckedItems,
+    required this.onUpdateIngredientCategories,
   });
 
   final int selectedMealsCount;
@@ -502,10 +513,12 @@ class _ShoppingHeader extends StatelessWidget {
   final bool showOnlyCategoryConflicts;
   final bool isStoreModeEnabled;
   final bool hideCheckedItems;
+  final int ingredientCategoryUpdateCount;
   final VoidCallback? onToggleItemsToCheckFilter;
   final VoidCallback? onToggleCategoryConflictFilter;
   final VoidCallback onToggleStoreMode;
   final VoidCallback? onToggleHideCheckedItems;
+  final Future<void> Function()? onUpdateIngredientCategories;
 
   @override
   Widget build(BuildContext context) {
@@ -600,6 +613,18 @@ class _ShoppingHeader extends StatelessWidget {
                     avatar: const Icon(Icons.category_outlined, size: 18),
                     label: Text(
                       '$categoryConflictCount catégorie(s) à vérifier',
+                    ),
+                  ),
+                if (ingredientCategoryUpdateCount > 0)
+                  ActionChip(
+                    onPressed: onUpdateIngredientCategories == null
+                        ? null
+                        : () {
+                            onUpdateIngredientCategories!();
+                          },
+                    avatar: const Icon(Icons.auto_fix_high_outlined, size: 18),
+                    label: Text(
+                      'Reclasser $ingredientCategoryUpdateCount ingrédient(s)',
                     ),
                   ),
                 FilterChip(

@@ -287,6 +287,26 @@ class _HomeScreenState extends State<HomeScreen> {
     showSnackBar('Recette supprimée : ${recipeToDelete.name}');
   }
 
+  Future<void> updateSafeIngredientCategories() async {
+    final result = await cuisineController.updateSafeIngredientCategories();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+
+    if (!result.hasUpdates) {
+      showSnackBar('Aucune catégorie à reclasser.');
+      return;
+    }
+
+    showSnackBar(
+      '${result.updatedIngredientsCount} ingrédient(s) reclassé(s) '
+      'dans ${result.updatedRecipesCount} recette(s).',
+    );
+  }
+
   Future<void> setSpecialMealForSlot(String slotId, String label) async {
     final specialMealLabel = await cuisineController.setSpecialMealForSlot(
       slotId,
@@ -453,6 +473,9 @@ class _HomeScreenState extends State<HomeScreen> {
           onToggleItem: toggleShoppingItem,
           onGoToPlanning: goToPlanning,
           onEditRecipe: openEditRecipeScreen,
+          ingredientCategoryUpdateCount: cuisineController
+              .countSafeIngredientCategoryUpdates(),
+          onUpdateIngredientCategories: updateSafeIngredientCategories,
         );
       default:
         return RecipesScreen(

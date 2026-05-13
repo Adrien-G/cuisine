@@ -18,6 +18,23 @@ class Ingredient {
   /// mais il n’est pas ajouté à la liste de courses.
   final bool includeInShoppingList;
 
+  Ingredient copyWith({
+    String? name,
+    double? quantity,
+    String? unit,
+    String? category,
+    bool? includeInShoppingList,
+  }) {
+    return Ingredient(
+      name: name ?? this.name,
+      quantity: quantity ?? this.quantity,
+      unit: unit ?? this.unit,
+      category: category ?? this.category,
+      includeInShoppingList:
+          includeInShoppingList ?? this.includeInShoppingList,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -36,8 +53,7 @@ class Ingredient {
           : (json['quantity'] as num).toDouble(),
       unit: json['unit'] as String? ?? '',
       category: json['category'] as String? ?? defaultIngredientCategory,
-      includeInShoppingList:
-          json['includeInShoppingList'] as bool? ?? true,
+      includeInShoppingList: json['includeInShoppingList'] as bool? ?? true,
     );
   }
 
@@ -59,26 +75,27 @@ class Ingredient {
         .replaceAll('.', ',');
   }
 
-String get displayText {
-  final parts = <String>[];
+  String get displayText {
+    final parts = <String>[];
 
-  if (quantity != null) {
-    parts.add(formattedQuantity);
+    if (quantity != null) {
+      parts.add(formattedQuantity);
+    }
+
+    final cleanedUnit = unit.trim();
+    final normalizedUnit = cleanedUnit.toLowerCase();
+
+    final shouldShowUnit =
+        cleanedUnit.isNotEmpty &&
+        normalizedUnit != 'unité' &&
+        normalizedUnit != 'unite';
+
+    if (shouldShowUnit) {
+      parts.add(cleanedUnit);
+    }
+
+    parts.add(name.trim());
+
+    return parts.join(' ');
   }
-
-  final cleanedUnit = unit.trim();
-  final normalizedUnit = cleanedUnit.toLowerCase();
-
-  final shouldShowUnit = cleanedUnit.isNotEmpty &&
-      normalizedUnit != 'unité' &&
-      normalizedUnit != 'unite';
-
-  if (shouldShowUnit) {
-    parts.add(cleanedUnit);
-  }
-
-  parts.add(name.trim());
-
-  return parts.join(' ');
-}
 }
