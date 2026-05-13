@@ -756,7 +756,7 @@ class _MealSlotTile extends StatelessWidget {
       child: Material(
         color: !isPlanned
             ? colorScheme.surface
-            : colorScheme.secondaryContainer.withOpacity(0.55),
+            : colorScheme.secondaryContainer.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
@@ -910,13 +910,11 @@ class _CompactActionButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
-    this.isPrimary = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
-  final bool isPrimary;
 
   @override
   Widget build(BuildContext context) {
@@ -940,10 +938,6 @@ class _CompactActionButton extends StatelessWidget {
         EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       ),
     );
-    if (isPrimary) {
-      return FilledButton(onPressed: onPressed, style: style, child: child);
-    }
-
     return OutlinedButton(onPressed: onPressed, style: style, child: child);
   }
 }

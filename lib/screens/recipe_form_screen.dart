@@ -361,7 +361,8 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: recipeDifficulties.contains(selectedDifficulty)
+                      initialValue:
+                          recipeDifficulties.contains(selectedDifficulty)
                           ? selectedDifficulty
                           : defaultRecipeDifficulty,
                       decoration: const InputDecoration(
@@ -648,7 +649,7 @@ class _FormSectionCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (trailing != null) trailing!,
+                ?trailing,
               ],
             ),
             const SizedBox(height: 14),
@@ -848,7 +849,7 @@ class _PreparationStepInputCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withOpacity(0.35),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
@@ -943,7 +944,7 @@ class _IngredientInputCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withOpacity(0.35),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
@@ -978,7 +979,7 @@ class _IngredientInputCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: ingredientCategories.contains(controllers.category)
+            initialValue: ingredientCategories.contains(controllers.category)
                 ? controllers.category
                 : defaultIngredientCategory,
             decoration: const InputDecoration(
@@ -1026,7 +1027,7 @@ class _IngredientInputCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: ingredientUnits.contains(controllers.unit)
+                  initialValue: ingredientUnits.contains(controllers.unit)
                       ? controllers.unit
                       : noIngredientUnit,
                   decoration: const InputDecoration(

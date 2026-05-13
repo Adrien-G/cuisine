@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cross_file/cross_file.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -49,9 +48,7 @@ class _BackupScreenState extends State<BackupScreen> {
         ShareParams(
           text: 'Sauvegarde de mes recettes Cuisine',
           subject: 'Sauvegarde Cuisine',
-          files: [
-            XFile(file.path),
-          ],
+          files: [XFile(file.path)],
         ),
       );
 
@@ -59,20 +56,16 @@ class _BackupScreenState extends State<BackupScreen> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sauvegarde exportée.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Sauvegarde exportée.')));
     } catch (_) {
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Impossible d’exporter la sauvegarde.'),
-        ),
+        const SnackBar(content: Text('Impossible d’exporter la sauvegarde.')),
       );
     } finally {
       if (mounted) {
@@ -105,8 +98,8 @@ class _BackupScreenState extends State<BackupScreen> {
 
       final pickedFile = result.files.single;
 
-      final bytes = pickedFile.bytes ??
-          await File(pickedFile.path!).readAsBytes();
+      final bytes =
+          pickedFile.bytes ?? await File(pickedFile.path!).readAsBytes();
 
       final rawJson = utf8.decode(bytes);
       final importedData = BackupService.parseBackupJson(rawJson);
@@ -141,11 +134,9 @@ class _BackupScreenState extends State<BackupScreen> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.message),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (_) {
       if (!mounted) {
         return;
@@ -203,9 +194,7 @@ class _BackupScreenState extends State<BackupScreen> {
     final planningCount = widget.appData.weeklyPlanning.length;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Sauvegarde'),
-      ),
+      appBar: AppBar(title: const Text('Sauvegarde')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -219,10 +208,7 @@ class _BackupScreenState extends State<BackupScreen> {
                 children: [
                   const Text(
                     'Données actuelles',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 8),
                   Text('$recipesCount recette(s) enregistrée(s)'),
