@@ -371,8 +371,10 @@ class _HomeScreenState extends State<HomeScreen> {
     showSnackBar('La semaine a été réinitialisée.');
   }
 
-  Future<void> fillEmptySlotsRandomly() async {
-    final result = await cuisineController.fillEmptySlotsRandomly();
+  Future<void> fillEmptySlotsRandomly({bool isVacationMode = false}) async {
+    final result = await cuisineController.fillEmptySlotsRandomly(
+      isVacationMode: isVacationMode,
+    );
 
     if (!mounted) {
       return;

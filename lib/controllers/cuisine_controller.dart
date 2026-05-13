@@ -229,7 +229,9 @@ class CuisineController {
     await saveData();
   }
 
-  Future<FillPlanningResult> fillEmptySlotsRandomly() async {
+  Future<FillPlanningResult> fillEmptySlotsRandomly({
+    bool isVacationMode = false,
+  }) async {
     if (recipes.isEmpty) {
       return const FillPlanningResult(addedMealsCount: 0, hasRecipes: false);
     }
@@ -256,18 +258,60 @@ class CuisineController {
       }
     }
 
-    final shuffledEmptySlots = [...emptySlots]..shuffle(random);
+    final plannedMainGroups = <String, String>{};
 
-    for (final slot in shuffledEmptySlots) {
+    for (final entry in weeklyPlanning.entries) {
+      final recipeId = getMainRecipeIdFromPlanningValue(entry.value);
+      final recipe = recipeId == null ? null : getRecipeById(recipeId);
+      final mainGroup = recipe == null ? null : getMainIngredientGroup(recipe);
+
+      if (mainGroup != null) {
+        plannedMainGroups[entry.key] = mainGroup;
+      }
+    }
+
+    for (final slot in emptySlots) {
+      final previousMainGroup = getPreviousMainIngredientGroup(
+        slot: slot,
+        plannedMainGroups: plannedMainGroups,
+      );
+      final sameDayMainGroups = getSameDayMainIngredientGroups(
+        slot: slot,
+        plannedMainGroups: plannedMainGroups,
+      );
       final selectedRecipe = chooseRecipeForSlot(
         slot: slot,
         recipeUsageCounts: recipeUsageCounts,
+        previousMainGroup: previousMainGroup,
+        sameDayMainGroups: sameDayMainGroups,
+        isVacationMode: isVacationMode,
+        random: random,
+      );
+      final selectedAccompaniment = chooseAccompanimentForSlot(
+        slot: slot,
+        mainRecipe: selectedRecipe,
+        recipeUsageCounts: recipeUsageCounts,
+        isVacationMode: isVacationMode,
         random: random,
       );
 
-      weeklyPlanning[slot.id] = selectedRecipe.id;
+      weeklyPlanning[slot.id] = buildRecipePlanningValue(
+        recipeId: selectedRecipe.id,
+        accompanimentRecipeId: selectedAccompaniment?.id,
+      );
       recipeUsageCounts[selectedRecipe.id] =
           recipeUsageCounts[selectedRecipe.id]! + 1;
+
+      if (selectedAccompaniment != null) {
+        recipeUsageCounts[selectedAccompaniment.id] =
+            recipeUsageCounts[selectedAccompaniment.id]! + 1;
+      }
+
+      final selectedMainGroup = getMainIngredientGroup(selectedRecipe);
+
+      if (selectedMainGroup != null) {
+        plannedMainGroups[slot.id] = selectedMainGroup;
+      }
     }
 
     checkedShoppingItems.clear();
@@ -283,9 +327,17 @@ class CuisineController {
   Recipe chooseRecipeForSlot({
     required MealSlot slot,
     required Map<String, int> recipeUsageCounts,
+    required String? previousMainGroup,
+    required Set<String> sameDayMainGroups,
+    required bool isVacationMode,
     required Random random,
   }) {
-    final shuffledRecipes = [...recipes]..shuffle(random);
+    final mainRecipes = recipes.where((recipe) {
+      return !recipe.tags.contains('Accompagnement') &&
+          !recipe.tags.contains('Dessert');
+    }).toList();
+    final shuffledRecipes = [...mainRecipes.isEmpty ? recipes : mainRecipes]
+      ..shuffle(random);
 
     Recipe? bestRecipe;
     int? bestScore;
@@ -295,6 +347,9 @@ class CuisineController {
         recipe: recipe,
         slot: slot,
         recipeUsageCounts: recipeUsageCounts,
+        previousMainGroup: previousMainGroup,
+        sameDayMainGroups: sameDayMainGroups,
+        isVacationMode: isVacationMode,
       );
 
       if (bestRecipe == null || score < bestScore!) {
@@ -310,6 +365,9 @@ class CuisineController {
     required Recipe recipe,
     required MealSlot slot,
     required Map<String, int> recipeUsageCounts,
+    required String? previousMainGroup,
+    required Set<String> sameDayMainGroups,
+    required bool isVacationMode,
   }) {
     final usageCount = recipeUsageCounts[recipe.id] ?? 0;
 
@@ -317,21 +375,90 @@ class CuisineController {
     final usageScore = usageCount * 100;
 
     final typeScore = getRecipeTypePreferenceScore(recipe);
+    final repetitionScore = getMainIngredientRepetitionScore(
+      recipe: recipe,
+      previousMainGroup: previousMainGroup,
+      sameDayMainGroups: sameDayMainGroups,
+    );
 
     final timeScore = isWeekendSlot(slot)
         ? getWeekendTimeScore(recipe)
-        : getWeekdayTimeScore(recipe);
+        : getWeekdayTimeScore(recipe, slot);
 
     final seasonalityScore = getSeasonalityPreferenceScore(recipe);
+    final vacationScore = isVacationMode
+        ? getVacationCompatibilityScore(recipe)
+        : 0;
 
-    return usageScore + typeScore + timeScore + seasonalityScore;
+    return usageScore +
+        typeScore +
+        repetitionScore +
+        timeScore +
+        seasonalityScore +
+        vacationScore;
+  }
+
+  Recipe? chooseAccompanimentForSlot({
+    required MealSlot slot,
+    required Recipe mainRecipe,
+    required Map<String, int> recipeUsageCounts,
+    required bool isVacationMode,
+    required Random random,
+  }) {
+    if (mainRecipe.tags.contains('Plat complet')) {
+      return null;
+    }
+
+    final accompanimentRecipes = recipes.where((recipe) {
+      return recipe.id != mainRecipe.id &&
+          recipe.tags.contains('Accompagnement');
+    }).toList();
+
+    if (accompanimentRecipes.isEmpty) {
+      return null;
+    }
+
+    final mainGroup = getMainIngredientGroup(mainRecipe);
+    final shuffledRecipes = [...accompanimentRecipes]..shuffle(random);
+
+    Recipe? bestRecipe;
+    int? bestScore;
+
+    for (final recipe in shuffledRecipes) {
+      final usageCount = recipeUsageCounts[recipe.id] ?? 0;
+      final recipeGroup = getMainIngredientGroup(recipe);
+      final sameBaseScore = recipeGroup != null && recipeGroup == mainGroup
+          ? 35
+          : 0;
+      final timeScore = isWeekendSlot(slot)
+          ? getWeekendTimeScore(recipe) ~/ 2
+          : getWeekdayTimeScore(recipe, slot) ~/ 2;
+      final vacationScore = isVacationMode
+          ? getVacationCompatibilityScore(recipe)
+          : 0;
+      final score =
+          usageCount * 100 +
+          sameBaseScore +
+          timeScore +
+          getSeasonalityPreferenceScore(recipe) +
+          vacationScore;
+
+      if (bestRecipe == null || score < bestScore!) {
+        bestRecipe = recipe;
+        bestScore = score;
+      }
+    }
+
+    return bestRecipe;
   }
 
   int getRecipeTypePreferenceScore(Recipe recipe) {
     final hasFullDishTag = recipe.tags.contains('Plat complet');
     final hasMainDishTag = recipe.tags.contains('Plat principal');
     final hasSideDishTag = recipe.tags.contains('Accompagnement');
-    final hasStarterTag = recipe.tags.contains('Entrée');
+    final hasStarterTag = normalizeForPlanning(
+      recipe.tags.join(' '),
+    ).contains('entree');
     final hasDessertTag = recipe.tags.contains('Dessert');
 
     if (hasFullDishTag) {
@@ -353,22 +480,43 @@ class CuisineController {
     return slot.day == 'Samedi' || slot.day == 'Dimanche';
   }
 
-  int getWeekdayTimeScore(Recipe recipe) {
+  int getWeekdayTimeScore(Recipe recipe, MealSlot slot) {
     final prepTime = recipe.prepTimeMinutes ?? recipe.durationMinutes ?? 30;
+    final totalTime = recipe.durationMinutes ?? prepTime;
 
-    if (prepTime <= 20) {
-      return -12;
+    var score = 0;
+
+    if (slot.meal == 'Midi') {
+      if (prepTime <= 20) {
+        score -= 20;
+      } else if (prepTime <= 30) {
+        score += 0;
+      } else if (prepTime <= 45) {
+        score += 35;
+      } else {
+        score += 80;
+      }
+
+      if (totalTime > 60) {
+        score += 25;
+      }
+    } else {
+      if (prepTime <= 20) {
+        score -= 16;
+      } else if (prepTime <= 30) {
+        score -= 6;
+      } else if (prepTime <= 45) {
+        score += 10;
+      } else {
+        score += 55;
+      }
+
+      if (totalTime > 90) {
+        score += 55;
+      }
     }
 
-    if (prepTime <= 30) {
-      return 0;
-    }
-
-    if (prepTime <= 45) {
-      return 18;
-    }
-
-    return 35;
+    return score;
   }
 
   int getWeekendTimeScore(Recipe recipe) {
@@ -407,6 +555,158 @@ class CuisineController {
     }
 
     return 8;
+  }
+
+  int getVacationCompatibilityScore(Recipe recipe) {
+    final hasOven = recipe.tags.contains('Four');
+    final hasStovetop = recipe.tags.contains('Plaque de cuisson');
+    final hasNoCook = recipe.tags.contains('Sans cuisson');
+
+    var score = 0;
+
+    if (hasNoCook) {
+      score -= 22;
+    }
+
+    if (hasStovetop) {
+      score -= 8;
+    }
+
+    if (hasOven) {
+      score += 75;
+    }
+
+    return score;
+  }
+
+  int getMainIngredientRepetitionScore({
+    required Recipe recipe,
+    required String? previousMainGroup,
+    required Set<String> sameDayMainGroups,
+  }) {
+    final mainGroup = getMainIngredientGroup(recipe);
+
+    if (mainGroup == null) {
+      return 0;
+    }
+
+    var score = 0;
+
+    if (mainGroup == previousMainGroup) {
+      score += 60;
+    }
+
+    if (sameDayMainGroups.contains(mainGroup)) {
+      score += 30;
+    }
+
+    return score;
+  }
+
+  String? getPreviousMainIngredientGroup({
+    required MealSlot slot,
+    required Map<String, String> plannedMainGroups,
+  }) {
+    final slotIndex = mealSlots.indexWhere((item) => item.id == slot.id);
+
+    if (slotIndex <= 0) {
+      return null;
+    }
+
+    for (var index = slotIndex - 1; index >= 0; index--) {
+      final group = plannedMainGroups[mealSlots[index].id];
+
+      if (group != null) {
+        return group;
+      }
+    }
+
+    return null;
+  }
+
+  Set<String> getSameDayMainIngredientGroups({
+    required MealSlot slot,
+    required Map<String, String> plannedMainGroups,
+  }) {
+    return mealSlots
+        .where((item) {
+          return item.day == slot.day && item.id != slot.id;
+        })
+        .map((item) {
+          return plannedMainGroups[item.id];
+        })
+        .whereType<String>()
+        .toSet();
+  }
+
+  String? getMainIngredientGroup(Recipe recipe) {
+    final searchableText = normalizeForPlanning(
+      [
+        recipe.name,
+        recipe.tags.join(' '),
+        recipe.ingredients.map((ingredient) => ingredient.name).join(' '),
+      ].join(' '),
+    );
+
+    const ingredientGroups = <String, List<String>>{
+      'poulet': ['poulet', 'dinde', 'volaille'],
+      'boeuf': ['boeuf', 'steak', 'hach'],
+      'porc': ['porc', 'jambon', 'lardon', 'saucisse', 'chorizo'],
+      'poisson': ['poisson', 'cabillaud', 'colin', 'merlu'],
+      'saumon': ['saumon'],
+      'thon': ['thon'],
+      'crevette': ['crevette', 'gambas'],
+      'oeuf': ['oeuf', 'omelette'],
+      'legumineuse': ['lentille', 'pois chiche', 'haricot rouge'],
+      'pates': ['pate', 'spaghetti', 'tagliatelle', 'macaroni'],
+      'riz': ['riz', 'risotto'],
+    };
+
+    for (final entry in ingredientGroups.entries) {
+      for (final keyword in entry.value) {
+        if (searchableText.contains(keyword)) {
+          return entry.key;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  String normalizeForPlanning(String value) {
+    final buffer = StringBuffer();
+
+    for (final rune in value.toLowerCase().runes) {
+      switch (rune) {
+        case 0x00E0:
+        case 0x00E2:
+        case 0x00E4:
+          buffer.write('a');
+        case 0x00E7:
+          buffer.write('c');
+        case 0x00E8:
+        case 0x00E9:
+        case 0x00EA:
+        case 0x00EB:
+          buffer.write('e');
+        case 0x00EE:
+        case 0x00EF:
+          buffer.write('i');
+        case 0x00F4:
+        case 0x00F6:
+          buffer.write('o');
+        case 0x0153:
+          buffer.write('oe');
+        case 0x00F9:
+        case 0x00FB:
+        case 0x00FC:
+          buffer.write('u');
+        default:
+          buffer.writeCharCode(rune);
+      }
+    }
+
+    return buffer.toString();
   }
 
   Future<void> toggleShoppingItem(String ingredient, bool isChecked) async {

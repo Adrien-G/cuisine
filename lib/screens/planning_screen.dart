@@ -5,6 +5,12 @@ import '../data/meal_slots.dart';
 import '../models/recipe.dart';
 import 'cooking_screen.dart';
 
+class _AutoFillOptions {
+  const _AutoFillOptions({required this.isVacationMode});
+
+  final bool isVacationMode;
+}
+
 class PlanningScreen extends StatelessWidget {
   const PlanningScreen({
     super.key,
@@ -25,7 +31,7 @@ class PlanningScreen extends StatelessWidget {
   final Future<void> Function(String slotId, Recipe recipe) onSelectRecipe;
   final Future<void> Function(String slotId) onRemoveRecipe;
   final Future<void> Function() onResetWeek;
-  final Future<void> Function() onFillEmptySlots;
+  final Future<void> Function({bool isVacationMode}) onFillEmptySlots;
   final VoidCallback onGoToRecipes;
   final Future<void> Function(String slotId, String label) onSetSpecialMeal;
   final Future<void> Function(String slotId, Recipe recipe)
@@ -356,38 +362,67 @@ class PlanningScreen extends StatelessWidget {
       return;
     }
 
-    final shouldFill = await showDialog<bool>(
+    final autoFillOptions = await showDialog<_AutoFillOptions>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Remplir automatiquement ?'),
-          content: Text(
-            '$emptySlotsCount repas vide(s) seront remplis avec des recettes '
-            'choisies automatiquement. Les repas déjà remplis ne seront pas modifiés.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
-              child: const Text('Annuler'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
-              child: const Text('Remplir'),
-            ),
-          ],
+        var isVacationMode = false;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Remplir automatiquement ?'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '$emptySlotsCount repas vide(s) seront remplis avec des '
+                    'recettes choisies automatiquement. Les repas deja remplis '
+                    'ne seront pas modifies.',
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.luggage_outlined),
+                    title: const Text('Mode vacances'),
+                    subtitle: const Text(
+                      'Evite le four et favorise les recettes simples.',
+                    ),
+                    value: isVacationMode,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        isVacationMode = value;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Annuler'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(
+                      context,
+                    ).pop(_AutoFillOptions(isVacationMode: isVacationMode));
+                  },
+                  child: const Text('Remplir'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
-
-    if (shouldFill != true) {
+    if (autoFillOptions == null) {
       return;
     }
 
-    await onFillEmptySlots();
+    await onFillEmptySlots(isVacationMode: autoFillOptions.isVacationMode);
   }
 
   String buildWeeklyPlanningShareText() {
@@ -400,27 +435,27 @@ class PlanningScreen extends StatelessWidget {
       buffer.writeln(day);
 
       for (final slot in getMealSlotsForDay(day)) {
-      final recipe = getRecipeForSlot(slot.id);
-final accompaniment = getAccompanimentForSlot(slot.id);
-final specialMealLabel = getSpecialMealForSlot(slot.id);
+        final recipe = getRecipeForSlot(slot.id);
+        final accompaniment = getAccompanimentForSlot(slot.id);
+        final specialMealLabel = getSpecialMealForSlot(slot.id);
 
-if (specialMealLabel != null) {
-  buffer.writeln('${slot.meal} : $specialMealLabel');
-} else if (recipe == null) {
-  buffer.writeln('${slot.meal} : Non planifié');
-} else {
-final recipeText = recipe.timeSummaryText.isEmpty
-    ? recipe.name
-    : '${recipe.name} (${recipe.timeSummaryText})';
+        if (specialMealLabel != null) {
+          buffer.writeln('${slot.meal} : $specialMealLabel');
+        } else if (recipe == null) {
+          buffer.writeln('${slot.meal} : Non planifié');
+        } else {
+          final recipeText = recipe.timeSummaryText.isEmpty
+              ? recipe.name
+              : '${recipe.name} (${recipe.timeSummaryText})';
 
-  if (accompaniment == null) {
-    buffer.writeln('${slot.meal} : $recipeText');
-  } else {
-    buffer.writeln(
-      '${slot.meal} : $recipeText + ${accompaniment.name}',
-    );
-  }
-}
+          if (accompaniment == null) {
+            buffer.writeln('${slot.meal} : $recipeText');
+          } else {
+            buffer.writeln(
+              '${slot.meal} : $recipeText + ${accompaniment.name}',
+            );
+          }
+        }
       }
 
       buffer.writeln();
@@ -725,146 +760,145 @@ class _MealSlotTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-           onTap: selectedRecipe != null && onStartCooking != null
-      ? onStartCooking
-      : onTap,
+          onTap: selectedRecipe != null && onStartCooking != null
+              ? onStartCooking
+              : onTap,
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Padding(
-  padding: const EdgeInsets.all(12),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selectedRecipe == null && !hasSpecialMeal
-                  ? colorScheme.surfaceContainerHighest
-                  : colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: selectedRecipe != null
-                ? Text(
-                    selectedRecipe.emoji,
-                    style: const TextStyle(
-                      fontSize: 23,
-                    ),
-                  )
-                : hasSpecialMeal
-                    ? Icon(
-                        Icons.restaurant_outlined,
-                        color: colorScheme.primary,
-                      )
-                    : Icon(
-                        icon,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: !isPlanned
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        slot.meal,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
+                      Container(
+                        width: 42,
+                        height: 42,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: selectedRecipe == null && !hasSpecialMeal
+                              ? colorScheme.surfaceContainerHighest
+                              : colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(14),
                         ),
+                        child: selectedRecipe != null
+                            ? Text(
+                                selectedRecipe.emoji,
+                                style: const TextStyle(fontSize: 23),
+                              )
+                            : hasSpecialMeal
+                            ? Icon(
+                                Icons.restaurant_outlined,
+                                color: colorScheme.primary,
+                              )
+                            : Icon(icon, color: colorScheme.onSurfaceVariant),
                       ),
-                      Text(
-                        'Aucune recette sélectionnée',
-                        style: TextStyle(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: !isPlanned
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    slot.meal,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Aucune recette sélectionnée',
+                                    style: TextStyle(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    slot.meal,
+                                    style: TextStyle(
+                                      color: colorScheme.onSurfaceVariant,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    selectedRecipe?.name ?? specialMealLabel!,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  if (accompaniment != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 3),
+                                      child: Text(
+                                        '+ ${accompaniment!.emoji} ${accompaniment!.name}',
+                                        style: TextStyle(
+                                          color: colorScheme.onSurfaceVariant,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  if (selectedRecipe != null &&
+                                      selectedRecipe.timeSummaryText.isNotEmpty)
+                                    Text(
+                                      selectedRecipe.timeSummaryText,
+                                      style: TextStyle(
+                                        color: colorScheme.onSurfaceVariant,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  if (hasSpecialMeal)
+                                    Text(
+                                      'Repas spécial',
+                                      style: TextStyle(
+                                        color: colorScheme.onSurfaceVariant,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                ],
+                              ),
                       ),
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        slot.meal,
-                        style: TextStyle(
-                          color: colorScheme.onSurfaceVariant,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      Icon(
+                        selectedRecipe != null
+                            ? Icons.play_arrow
+                            : Icons.chevron_right,
                       ),
-                      Text(
-                        selectedRecipe?.name ?? specialMealLabel!,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      if (accompaniment != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 3),
-                          child: Text(
-                            '+ ${accompaniment!.emoji} ${accompaniment!.name}',
-                            style: TextStyle(
-                              color: colorScheme.onSurfaceVariant,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                     if (selectedRecipe != null &&
-    selectedRecipe.timeSummaryText.isNotEmpty)
-  Text(
-    selectedRecipe.timeSummaryText,
-    style: TextStyle(
-      color: colorScheme.onSurfaceVariant,
-      fontSize: 13,
-    ),
-  ),
-                      if (hasSpecialMeal)
-                        Text(
-                          'Repas spécial',
-                          style: TextStyle(
-                            color: colorScheme.onSurfaceVariant,
-                            fontSize: 13,
-                          ),
-                        ),
                     ],
                   ),
-          ),
-          Icon(
-  selectedRecipe != null ? Icons.play_arrow : Icons.chevron_right,
-),
-        ],
-      ),
-      if (isPlanned) ...[
-        const SizedBox(height: 10),
-      Wrap(
-  spacing: 6,
-  runSpacing: 6,
-  children: [
-    if (canHaveAccompaniment)
-      _CompactActionButton(
-        icon: accompaniment == null
-            ? Icons.add_circle_outline
-            : Icons.rice_bowl,
-        label: accompaniment == null ? 'Accomp.' : 'Accomp.',
-        onPressed: onSelectAccompaniment,
-      ),
-    if (isPlanned)
-      _CompactActionButton(
-        icon: Icons.edit_outlined,
-        label: 'Modifier',
-        onPressed: onTap,
-      ),
-  ],
-),
-      ],
-    ],
-  ),
-),
+                  if (isPlanned) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (canHaveAccompaniment)
+                          _CompactActionButton(
+                            icon: accompaniment == null
+                                ? Icons.add_circle_outline
+                                : Icons.rice_bowl,
+                            label: accompaniment == null
+                                ? 'Accomp.'
+                                : 'Accomp.',
+                            onPressed: onSelectAccompaniment,
+                          ),
+                        if (isPlanned)
+                          _CompactActionButton(
+                            icon: Icons.edit_outlined,
+                            label: 'Modifier',
+                            onPressed: onTap,
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
             ),
+          ),
         ),
       ),
     );
@@ -889,49 +923,31 @@ class _CompactActionButton extends StatelessWidget {
     final child = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          icon,
-          size: 17,
-        ),
+        Icon(icon, size: 17),
         const SizedBox(width: 5),
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ],
     );
 
-   final style = ButtonStyle(
-  visualDensity: VisualDensity.standard,
-  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-  minimumSize: const WidgetStatePropertyAll(
-    Size(0, 38),
-  ),
-  padding: const WidgetStatePropertyAll(
-    EdgeInsets.symmetric(
-      horizontal: 14,
-      vertical: 8,
-    ),
-  ),
-);
+    final style = ButtonStyle(
+      visualDensity: VisualDensity.standard,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      minimumSize: const WidgetStatePropertyAll(Size(0, 38)),
+      padding: const WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      ),
+    );
     if (isPrimary) {
-      return FilledButton(
-        onPressed: onPressed,
-        style: style,
-        child: child,
-      );
+      return FilledButton(onPressed: onPressed, style: style, child: child);
     }
 
-    return OutlinedButton(
-      onPressed: onPressed,
-      style: style,
-      child: child,
-    );
+    return OutlinedButton(onPressed: onPressed, style: style, child: child);
   }
 }
+
 class _SmallBadge extends StatelessWidget {
   const _SmallBadge({required this.label});
 
@@ -1417,16 +1433,16 @@ class _RecipeSelectorTile extends StatelessWidget {
                         fontSize: 16,
                       ),
                     ),
-                  if (recipe.timeSummaryText.isNotEmpty) ...[
-  const SizedBox(height: 3),
-  Text(
-    recipe.timeSummaryText,
-    style: TextStyle(
-      color: colorScheme.onSurfaceVariant,
-      fontSize: 13,
-    ),
-  ),
-],
+                    if (recipe.timeSummaryText.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        recipe.timeSummaryText,
+                        style: TextStyle(
+                          color: colorScheme.onSurfaceVariant,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
                     if (recipe.ingredients.isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(
