@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/recipe.dart';
 
@@ -201,8 +202,8 @@ class _CookingScreenState extends State<CookingScreen> {
         }
       });
 
-      for (final timer in finishedTimers) {
-        showTimerFinishedDialog(timer);
+      for (final _ in finishedTimers) {
+        playTimerFinishedSound();
       }
 
       if (!cookingTimers.any((timer) => timer.isRunning)) {
@@ -237,25 +238,6 @@ class _CookingScreenState extends State<CookingScreen> {
       } else {
         cookingTimers[timerIndex] = timer;
       }
-    });
-
-    startTimerTickerIfNeeded();
-  }
-
-  void resetTimer(CookingTimer timer) {
-    setState(() {
-      final timerIndex = cookingTimers.indexWhere(
-        (item) => item.id == timer.id,
-      );
-
-      if (timerIndex == -1) {
-        return;
-      }
-
-      cookingTimers[timerIndex] = timer.copyWith(
-        remainingDuration: timer.duration,
-        hasFinished: false,
-      );
     });
 
     startTimerTickerIfNeeded();
@@ -418,30 +400,8 @@ class _CookingScreenState extends State<CookingScreen> {
     );
   }
 
-  Future<void> showTimerFinishedDialog(CookingTimer timer) async {
-    if (!mounted) {
-      return;
-    }
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        final title = timer.label.trim().isEmpty ? 'Minuteur' : timer.label;
-
-        return AlertDialog(
-          title: const Text('Minuteur terminé'),
-          content: Text('$title est terminé.'),
-          actions: [
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
+  void playTimerFinishedSound() {
+    SystemSound.play(SystemSoundType.alert);
   }
 
   void goPrevious() {
@@ -563,7 +523,6 @@ class _CookingScreenState extends State<CookingScreen> {
                 onEditTimer: (timer) {
                   openTimerSettings(timer: timer);
                 },
-                onResetTimer: resetTimer,
                 onRemoveTimer: removeTimer,
               ),
               navigation: _CookingNavigation(
@@ -878,14 +837,12 @@ class _CookingTimersBar extends StatelessWidget {
     required this.timers,
     required this.onAddTimer,
     required this.onEditTimer,
-    required this.onResetTimer,
     required this.onRemoveTimer,
   });
 
   final List<CookingTimer> timers;
   final VoidCallback onAddTimer;
   final void Function(CookingTimer timer) onEditTimer;
-  final void Function(CookingTimer timer) onResetTimer;
   final void Function(CookingTimer timer) onRemoveTimer;
 
   String formatDuration(Duration value) {
@@ -953,9 +910,6 @@ class _CookingTimersBar extends StatelessWidget {
                         onTap: () {
                           onEditTimer(timer);
                         },
-                        onReset: () {
-                          onResetTimer(timer);
-                        },
                         onRemove: () {
                           onRemoveTimer(timer);
                         },
@@ -981,14 +935,12 @@ class _CookingTimerChip extends StatelessWidget {
     required this.timer,
     required this.formattedDuration,
     required this.onTap,
-    required this.onReset,
     required this.onRemove,
   });
 
   final CookingTimer timer;
   final String formattedDuration;
   final VoidCallback onTap;
-  final VoidCallback onReset;
   final VoidCallback onRemove;
 
   @override
@@ -1055,12 +1007,6 @@ class _CookingTimerChip extends StatelessWidget {
               ),
               IconButton(
                 tooltip: 'Réinitialiser',
-                onPressed: onReset,
-                icon: const Icon(Icons.refresh),
-                visualDensity: VisualDensity.compact,
-              ),
-              IconButton(
-                tooltip: 'Supprimer',
                 onPressed: onRemove,
                 icon: const Icon(Icons.close),
                 visualDensity: VisualDensity.compact,
