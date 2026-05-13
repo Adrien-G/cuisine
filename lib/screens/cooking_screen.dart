@@ -1,23 +1,19 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+
 import 'package:confetti/confetti.dart';
+import 'package:flutter/material.dart';
 
 import '../models/recipe.dart';
 
 class CookingStep {
-  const CookingStep({
-    required this.title,
-    required this.text,
-  });
+  const CookingStep({required this.title, required this.text});
 
   final String title;
   final String text;
 }
 
 class CookingScreen extends StatefulWidget {
-  const CookingScreen({
-    super.key,
-    required this.recipe,
-  });
+  const CookingScreen({super.key, required this.recipe});
 
   final Recipe recipe;
 
@@ -27,54 +23,76 @@ class CookingScreen extends StatefulWidget {
 
 class _CookingScreenState extends State<CookingScreen> {
   int currentStepIndex = 0;
-late final ConfettiController confettiController;
-List<String> get recipePreparationSteps {
-  return widget.recipe.steps
-      .split('\n')
-      .map(cleanPreparationStep)
-      .where((step) => step.isNotEmpty && step != 'À compléter.')
-      .toList();
-}
 
-List<CookingStep> get cookingSteps {
-  final ingredientLines = widget.recipe.ingredients
-      .map((ingredient) => '• ${ingredient.displayText}')
-      .join('\n');
+  late final ConfettiController confettiController;
 
-  return [
-    CookingStep(
-      title: 'Rassembler les ingrédients',
-      text: ingredientLines.isEmpty
-          ? 'Prépare tous les ingrédients nécessaires avant de commencer.'
-          : 'Prépare tous les ingrédients nécessaires :\n\n$ingredientLines',
-    ),
-    const CookingStep(
-      title: 'Se laver les mains',
-      text: 'Lave-toi soigneusement les mains avant de commencer la préparation.',
-    ),
-    for (final step in recipePreparationSteps)
+  Timer? countdownTimer;
+  Duration timerDuration = Duration.zero;
+  Duration remainingTimerDuration = Duration.zero;
+  String timerLabel = '';
+  bool isTimerRunning = false;
+  bool hasTimerFinished = false;
+
+  List<String> get recipePreparationSteps {
+    return widget.recipe.steps
+        .split('\n')
+        .map(cleanPreparationStep)
+        .where((step) => step.isNotEmpty && step != 'À compléter.')
+        .toList();
+  }
+
+  List<CookingStep> get cookingSteps {
+    final ingredientLines = widget.recipe.ingredients
+        .map((ingredient) => '• ${ingredient.displayText}')
+        .join('\n');
+
+    return [
       CookingStep(
-        title: 'Préparation',
-        text: step,
+        title: 'Rassembler les ingrédients',
+        text: ingredientLines.isEmpty
+            ? 'Prépare tous les ingrédients nécessaires avant de commencer.'
+            : 'Prépare tous les ingrédients nécessaires :\n\n$ingredientLines',
       ),
-  ];
-}
+      const CookingStep(
+        title: 'Se laver les mains',
+        text:
+            'Lave-toi soigneusement les mains avant de commencer la préparation.',
+      ),
+      for (final step in recipePreparationSteps)
+        CookingStep(title: 'Préparation', text: step),
+    ];
+  }
+
+  bool get hasSteps => cookingSteps.isNotEmpty;
+
+  bool get canGoPrevious => currentStepIndex > 0;
+
+  bool get isLastStep => currentStepIndex == cookingSteps.length - 1;
+
+  double get progress {
+    if (!hasSteps) {
+      return 0;
+    }
+
+    return (currentStepIndex + 1) / cookingSteps.length;
+  }
 
   @override
-void initState() {
-  super.initState();
+  void initState() {
+    super.initState();
 
-  confettiController = ConfettiController(
-    duration: const Duration(seconds: 10),
-  );
-}
+    confettiController = ConfettiController(
+      duration: const Duration(seconds: 10),
+    );
+  }
 
-@override
-void dispose() {
-  confettiController.dispose();
+  @override
+  void dispose() {
+    countdownTimer?.cancel();
+    confettiController.dispose();
 
-  super.dispose();
-}
+    super.dispose();
+  }
 
   String cleanPreparationStep(String value) {
     return value
@@ -84,21 +102,116 @@ void dispose() {
         .trim();
   }
 
-bool get hasSteps => cookingSteps.isNotEmpty;
+  void setTimer({required Duration duration, required String label}) {
+    countdownTimer?.cancel();
 
-bool get canGoPrevious => currentStepIndex > 0;
-
-bool get canGoNext => currentStepIndex < cookingSteps.length - 1;
-
-bool get isLastStep => currentStepIndex == cookingSteps.length - 1;
-
-double get progress {
-  if (!hasSteps) {
-    return 0;
+    setState(() {
+      timerDuration = duration;
+      remainingTimerDuration = duration;
+      timerLabel = label.trim();
+      isTimerRunning = false;
+      hasTimerFinished = false;
+    });
   }
 
-  return (currentStepIndex + 1) / cookingSteps.length;
-}
+  void setAndStartTimer({required Duration duration, required String label}) {
+    setTimer(duration: duration, label: label);
+
+    if (duration.inSeconds > 0) {
+      startTimerWithDuration(duration);
+    }
+  }
+
+  void startTimerWithDuration(Duration duration) {
+    if (duration.inSeconds <= 0) {
+      return;
+    }
+
+    countdownTimer?.cancel();
+
+    setState(() {
+      remainingTimerDuration = duration;
+      isTimerRunning = true;
+      hasTimerFinished = false;
+    });
+
+    countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (remainingTimerDuration.inSeconds <= 1) {
+        timer.cancel();
+
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          remainingTimerDuration = Duration.zero;
+          isTimerRunning = false;
+          hasTimerFinished = true;
+        });
+
+        showTimerFinishedDialog();
+        return;
+      }
+
+      setState(() {
+        remainingTimerDuration -= const Duration(seconds: 1);
+      });
+    });
+  }
+
+  void resetTimer() {
+    countdownTimer?.cancel();
+
+    setState(() {
+      remainingTimerDuration = timerDuration;
+      isTimerRunning = false;
+      hasTimerFinished = false;
+    });
+  }
+
+  Future<void> openTimerSettings() async {
+    final settings = await showDialog<_TimerSettings>(
+      context: context,
+      builder: (context) {
+        return _TimerSettingsDialog(
+          initialDuration: timerDuration,
+          initialLabel: timerLabel,
+        );
+      },
+    );
+
+    if (settings == null) {
+      return;
+    }
+
+    setAndStartTimer(duration: settings.duration, label: settings.label);
+  }
+
+  Future<void> showTimerFinishedDialog() async {
+    if (!mounted) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        final title = timerLabel.trim().isEmpty ? 'Minuteur' : timerLabel;
+
+        return AlertDialog(
+          title: const Text('Minuteur terminé'),
+          content: Text('$title est terminé.'),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   void goPrevious() {
     if (!canGoPrevious) {
@@ -111,7 +224,8 @@ double get progress {
   }
 
   void goNext() {
-    if (!canGoNext) {
+    if (isLastStep) {
+      finishCooking();
       return;
     }
 
@@ -121,105 +235,106 @@ double get progress {
   }
 
   Future<void> finishCooking() async {
-  confettiController.play();
+    countdownTimer?.cancel();
+    confettiController.play();
 
-  await Future.delayed(
-    const Duration(milliseconds: 2000),
-  );
+    await Future.delayed(const Duration(milliseconds: 2000));
 
-  if (!mounted) {
-    return;
+    if (!mounted) {
+      return;
+    }
+
+    final shouldClose = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('🎉 Bravo !'),
+          content: Text('La recette "${widget.recipe.name}" est terminée.'),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('Terminer'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (shouldClose == true) {
+      Navigator.of(context).pop();
+    }
   }
-
-  final shouldClose = await showDialog<bool>(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) {
-      return AlertDialog(
-        title: const Text('🎉 Bravo !'),
-        content: Text(
-          'La recette "${widget.recipe.name}" est terminée.',
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () {
-              Navigator.of(context).pop(true);
-            },
-            child: const Text('Terminer'),
-          ),
-        ],
-      );
-    },
-  );
-
-  if (!mounted) {
-    return;
-  }
-
-  if (shouldClose == true) {
-    Navigator.of(context).pop();
-  }
-}
 
   @override
   Widget build(BuildContext context) {
     final steps = cookingSteps;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Préparation'),
-      ),
-    body: Stack(
-  children: [
-    SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(16),
+      appBar: AppBar(title: const Text('Préparation')),
+      body: Stack(
         children: [
-          _CookingHeader(
-            recipe: widget.recipe,
-            currentStepIndex: currentStepIndex,
-            totalSteps: steps.length,
-            progress: progress,
-          ),
-          const SizedBox(height: 16),
-          _IngredientsCard(
-            recipe: widget.recipe,
-          ),
-          const SizedBox(height: 16),
-          if (!hasSteps)
-            const _NoStepsCard()
-          else
-            _CurrentStepCard(
-  stepNumber: currentStepIndex + 1,
-  totalSteps: steps.length,
-  stepTitle: steps[currentStepIndex].title,
-  stepText: steps[currentStepIndex].text,
-),
-          const SizedBox(height: 16),
-          if (hasSteps)
-            _CookingNavigation(
-              canGoPrevious: canGoPrevious,
-              canGoNext: canGoNext,
-              isLastStep: isLastStep,
-              onPrevious: goPrevious,
-              onNext: goNext,
-              onFinish: finishCooking,
+          SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              children: [
+                _CookingHeader(
+                  recipe: widget.recipe,
+                  currentStepIndex: currentStepIndex,
+                  totalSteps: steps.length,
+                  progress: progress,
+                ),
+                const SizedBox(height: 16),
+                _IngredientsCard(recipe: widget.recipe),
+                const SizedBox(height: 16),
+                if (!hasSteps)
+                  const _NoStepsCard()
+                else
+                  _CurrentStepCard(
+                    stepNumber: currentStepIndex + 1,
+                    stepTitle: steps[currentStepIndex].title,
+                    stepText: steps[currentStepIndex].text,
+                  ),
+              ],
             ),
+          ),
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: confettiController,
+              blastDirectionality: BlastDirectionality.explosive,
+              shouldLoop: false,
+              numberOfParticles: 28,
+              gravity: 0.25,
+            ),
+          ),
         ],
       ),
-    ),
-    Align(
-      alignment: Alignment.topCenter,
-      child: ConfettiWidget(
-        confettiController: confettiController,
-        blastDirectionality: BlastDirectionality.explosive,
-        shouldLoop: false,
-        numberOfParticles: 28,
-        gravity: 0.25,
-      ),
-    ),
-  ],
-),
+      bottomNavigationBar: hasSteps
+          ? _CookingFooter(
+              timer: _StepTimerBar(
+                label: timerLabel,
+                duration: timerDuration,
+                remainingDuration: remainingTimerDuration,
+                isRunning: isTimerRunning,
+                hasFinished: hasTimerFinished,
+                onOpenSettings: openTimerSettings,
+                onReset: resetTimer,
+              ),
+              navigation: _CookingNavigation(
+                canGoPrevious: canGoPrevious,
+                isLastStep: isLastStep,
+                onPrevious: goPrevious,
+                onNext: goNext,
+              ),
+            )
+          : null,
     );
   }
 }
@@ -260,12 +375,7 @@ class _CookingHeader extends StatelessWidget {
                   color: colorScheme.surface,
                   borderRadius: BorderRadius.circular(22),
                 ),
-                child: Text(
-                  recipe.emoji,
-                  style: const TextStyle(
-                    fontSize: 36,
-                  ),
-                ),
+                child: Text(recipe.emoji, style: const TextStyle(fontSize: 36)),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -311,7 +421,7 @@ class _CookingHeader extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: progress,
                 minHeight: 8,
-                backgroundColor: colorScheme.surface.withOpacity(0.55),
+                backgroundColor: colorScheme.surface.withValues(alpha: 0.55),
               ),
             ),
           ],
@@ -322,9 +432,7 @@ class _CookingHeader extends StatelessWidget {
 }
 
 class _IngredientsCard extends StatelessWidget {
-  const _IngredientsCard({
-    required this.recipe,
-  });
+  const _IngredientsCard({required this.recipe});
 
   final Recipe recipe;
 
@@ -338,9 +446,7 @@ class _IngredientsCard extends StatelessWidget {
         leading: const Icon(Icons.shopping_basket_outlined),
         title: const Text(
           'Ingrédients',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w800),
         ),
         subtitle: Text('${recipe.ingredients.length} ingrédient(s)'),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -379,15 +485,13 @@ class _IngredientsCard extends StatelessWidget {
 }
 
 class _CurrentStepCard extends StatelessWidget {
-const _CurrentStepCard({
-  required this.stepNumber,
-  required this.totalSteps,
-  required this.stepTitle,
-  required this.stepText,
-});
+  const _CurrentStepCard({
+    required this.stepNumber,
+    required this.stepTitle,
+    required this.stepText,
+  });
 
   final int stepNumber;
-  final int totalSteps;
   final String stepText;
   final String stepTitle;
 
@@ -423,12 +527,12 @@ const _CurrentStepCard({
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-  stepTitle,
-  style: const TextStyle(
-    fontSize: 22,
-    fontWeight: FontWeight.w800,
-  ),
-),
+                    stepTitle,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -448,22 +552,267 @@ const _CurrentStepCard({
   }
 }
 
+class _CookingFooter extends StatelessWidget {
+  const _CookingFooter({required this.timer, required this.navigation});
+
+  final Widget timer;
+  final Widget navigation;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: colorScheme.surface,
+      elevation: 8,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [timer, const SizedBox(height: 8), navigation],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StepTimerBar extends StatelessWidget {
+  const _StepTimerBar({
+    required this.label,
+    required this.duration,
+    required this.remainingDuration,
+    required this.isRunning,
+    required this.hasFinished,
+    required this.onOpenSettings,
+    required this.onReset,
+  });
+
+  final String label;
+  final Duration duration;
+  final Duration remainingDuration;
+  final bool isRunning;
+  final bool hasFinished;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onReset;
+
+  String formatDuration(Duration value) {
+    final totalSeconds = value.inSeconds;
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return '$hours:${minutes.toString().padLeft(2, '0')}:'
+          '${seconds.toString().padLeft(2, '0')}';
+    }
+
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final hasDuration = duration.inSeconds > 0;
+
+    return Material(
+      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onOpenSettings,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: colorScheme.outlineVariant),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.timer_outlined, color: colorScheme.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label.trim().isEmpty ? statusText(hasDuration) : label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      formatDuration(remainingDuration),
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: getTimerColor(
+                          hasDuration: hasDuration,
+                          colorScheme: colorScheme,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Réinitialiser',
+                onPressed: hasDuration ? onReset : null,
+                icon: const Icon(Icons.refresh),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String get hasTimerFinishedText => hasFinished ? 'Terminé' : 'Prêt';
+
+  String statusText(bool hasDuration) {
+    if (!hasDuration) {
+      return 'Toucher pour régler';
+    }
+
+    if (isRunning) {
+      return 'En cours';
+    }
+
+    return hasTimerFinishedText;
+  }
+
+  Color getTimerColor({
+    required bool hasDuration,
+    required ColorScheme colorScheme,
+  }) {
+    if (!hasDuration) {
+      return colorScheme.onSurfaceVariant;
+    }
+
+    if (hasFinished) {
+      return colorScheme.error;
+    }
+
+    return colorScheme.onSurface;
+  }
+}
+
+class _TimerSettings {
+  const _TimerSettings({required this.duration, required this.label});
+
+  final Duration duration;
+  final String label;
+}
+
+class _TimerSettingsDialog extends StatefulWidget {
+  const _TimerSettingsDialog({
+    required this.initialDuration,
+    required this.initialLabel,
+  });
+
+  final Duration initialDuration;
+  final String initialLabel;
+
+  @override
+  State<_TimerSettingsDialog> createState() => _TimerSettingsDialogState();
+}
+
+class _TimerSettingsDialogState extends State<_TimerSettingsDialog> {
+  late final TextEditingController minutesController;
+  late final TextEditingController labelController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    minutesController = TextEditingController(
+      text: widget.initialDuration.inMinutes == 0
+          ? ''
+          : widget.initialDuration.inMinutes.toString(),
+    );
+    labelController = TextEditingController(text: widget.initialLabel);
+  }
+
+  @override
+  void dispose() {
+    minutesController.dispose();
+    labelController.dispose();
+
+    super.dispose();
+  }
+
+  void submit() {
+    final minutes = int.tryParse(minutesController.text.trim()) ?? 0;
+
+    Navigator.of(context).pop(
+      _TimerSettings(
+        duration: minutes <= 0 ? Duration.zero : Duration(minutes: minutes),
+        label: labelController.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Régler le minuteur'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: minutesController,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Temps',
+              suffixText: 'min',
+            ),
+            onSubmitted: (_) {
+              submit();
+            },
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: labelController,
+            decoration: const InputDecoration(
+              labelText: 'Libellé',
+              hintText: 'Ex : Cuisson des pâtes',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          child: const Text('Annuler'),
+        ),
+        FilledButton(onPressed: submit, child: const Text('Valider')),
+      ],
+    );
+  }
+}
+
 class _CookingNavigation extends StatelessWidget {
   const _CookingNavigation({
     required this.canGoPrevious,
-    required this.canGoNext,
     required this.isLastStep,
     required this.onPrevious,
     required this.onNext,
-    required this.onFinish,
   });
 
   final bool canGoPrevious;
-  final bool canGoNext;
   final bool isLastStep;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
-  final VoidCallback onFinish;
 
   @override
   Widget build(BuildContext context) {
@@ -479,13 +828,9 @@ class _CookingNavigation extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: FilledButton.icon(
-            onPressed: isLastStep ? onFinish : onNext,
-            icon: Icon(
-              isLastStep ? Icons.check : Icons.arrow_forward,
-            ),
-            label: Text(
-              isLastStep ? 'Terminer' : 'Suivant',
-            ),
+            onPressed: onNext,
+            icon: Icon(isLastStep ? Icons.check : Icons.arrow_forward),
+            label: Text(isLastStep ? 'Terminer' : 'Suivant'),
           ),
         ),
       ],
