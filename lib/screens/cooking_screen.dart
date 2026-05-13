@@ -1,8 +1,8 @@
 import 'dart:async';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../models/recipe.dart';
 
@@ -66,10 +66,13 @@ class _CookingScreenState extends State<CookingScreen> {
   int currentStepIndex = 0;
 
   late final ConfettiController confettiController;
+  late final AudioPlayer timerAudioPlayer;
 
   Timer? timerTicker;
+  Timer? timerAlertStopTimer;
   final List<CookingTimer> cookingTimers = [];
   int nextTimerId = 0;
+  bool isTimerAlertPlaying = false;
 
   List<String> get recipePreparationSteps {
     final cleanedSteps = widget.recipe.steps.trim();
@@ -144,11 +147,14 @@ class _CookingScreenState extends State<CookingScreen> {
     confettiController = ConfettiController(
       duration: const Duration(seconds: 10),
     );
+    timerAudioPlayer = AudioPlayer();
   }
 
   @override
   void dispose() {
     timerTicker?.cancel();
+    timerAlertStopTimer?.cancel();
+    timerAudioPlayer.dispose();
     confettiController.dispose();
 
     super.dispose();
@@ -202,8 +208,8 @@ class _CookingScreenState extends State<CookingScreen> {
         }
       });
 
-      for (final _ in finishedTimers) {
-        playTimerFinishedSound();
+      if (finishedTimers.isNotEmpty) {
+        unawaited(startTimerFinishedAlert());
       }
 
       if (!cookingTimers.any((timer) => timer.isRunning)) {
@@ -241,6 +247,7 @@ class _CookingScreenState extends State<CookingScreen> {
     });
 
     startTimerTickerIfNeeded();
+    syncTimerFinishedAlert();
   }
 
   void removeTimer(CookingTimer timer) {
@@ -252,6 +259,8 @@ class _CookingScreenState extends State<CookingScreen> {
       timerTicker?.cancel();
       timerTicker = null;
     }
+
+    syncTimerFinishedAlert();
   }
 
   void startSuggestedTimer(CookingTimerSuggestion suggestion) {
@@ -400,8 +409,51 @@ class _CookingScreenState extends State<CookingScreen> {
     );
   }
 
-  void playTimerFinishedSound() {
-    SystemSound.play(SystemSoundType.alert);
+  Future<void> startTimerFinishedAlert() async {
+    if (isTimerAlertPlaying) {
+      return;
+    }
+
+    isTimerAlertPlaying = true;
+    timerAlertStopTimer?.cancel();
+    timerAlertStopTimer = Timer(const Duration(minutes: 1), () {
+      unawaited(stopTimerFinishedAlert());
+    });
+
+    try {
+      await timerAudioPlayer.setReleaseMode(ReleaseMode.loop);
+      await timerAudioPlayer.stop();
+
+      if (!isTimerAlertPlaying ||
+          !cookingTimers.any((timer) => timer.hasFinished)) {
+        return;
+      }
+
+      await timerAudioPlayer.play(AssetSource('sounds/timer_done.wav'));
+    } catch (_) {
+      timerAlertStopTimer?.cancel();
+      timerAlertStopTimer = null;
+      isTimerAlertPlaying = false;
+    }
+  }
+
+  Future<void> stopTimerFinishedAlert() async {
+    if (!isTimerAlertPlaying) {
+      return;
+    }
+
+    timerAlertStopTimer?.cancel();
+    timerAlertStopTimer = null;
+    isTimerAlertPlaying = false;
+    await timerAudioPlayer.stop();
+  }
+
+  void syncTimerFinishedAlert() {
+    if (cookingTimers.any((timer) => timer.hasFinished)) {
+      return;
+    }
+
+    unawaited(stopTimerFinishedAlert());
   }
 
   void goPrevious() {
