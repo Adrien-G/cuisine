@@ -12,6 +12,39 @@ class CookingStep {
   final String text;
 }
 
+class CookingTimer {
+  const CookingTimer({
+    required this.id,
+    required this.duration,
+    required this.remainingDuration,
+    required this.label,
+    this.hasFinished = false,
+  });
+
+  final int id;
+  final Duration duration;
+  final Duration remainingDuration;
+  final String label;
+  final bool hasFinished;
+
+  bool get isRunning => remainingDuration.inSeconds > 0 && !hasFinished;
+
+  CookingTimer copyWith({
+    Duration? duration,
+    Duration? remainingDuration,
+    String? label,
+    bool? hasFinished,
+  }) {
+    return CookingTimer(
+      id: id,
+      duration: duration ?? this.duration,
+      remainingDuration: remainingDuration ?? this.remainingDuration,
+      label: label ?? this.label,
+      hasFinished: hasFinished ?? this.hasFinished,
+    );
+  }
+}
+
 class CookingScreen extends StatefulWidget {
   const CookingScreen({super.key, required this.recipe});
 
@@ -26,12 +59,9 @@ class _CookingScreenState extends State<CookingScreen> {
 
   late final ConfettiController confettiController;
 
-  Timer? countdownTimer;
-  Duration timerDuration = Duration.zero;
-  Duration remainingTimerDuration = Duration.zero;
-  String timerLabel = '';
-  bool isTimerRunning = false;
-  bool hasTimerFinished = false;
+  Timer? timerTicker;
+  final List<CookingTimer> cookingTimers = [];
+  int nextTimerId = 0;
 
   List<String> get recipePreparationSteps {
     final cleanedSteps = widget.recipe.steps.trim();
@@ -108,7 +138,7 @@ class _CookingScreenState extends State<CookingScreen> {
 
   @override
   void dispose() {
-    countdownTimer?.cancel();
+    timerTicker?.cancel();
     confettiController.dispose();
 
     super.dispose();
@@ -126,80 +156,120 @@ class _CookingScreenState extends State<CookingScreen> {
     return value.trim().replaceFirst(RegExp(r'^\d+[.)]\s*'), '').trim();
   }
 
-  void setTimer({required Duration duration, required String label}) {
-    countdownTimer?.cancel();
+  void startTimerTickerIfNeeded() {
+    if (timerTicker?.isActive == true) {
+      return;
+    }
 
-    setState(() {
-      timerDuration = duration;
-      remainingTimerDuration = duration;
-      timerLabel = label.trim();
-      isTimerRunning = false;
-      hasTimerFinished = false;
+    timerTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) {
+        return;
+      }
+
+      final finishedTimers = <CookingTimer>[];
+
+      setState(() {
+        for (var index = 0; index < cookingTimers.length; index++) {
+          final timer = cookingTimers[index];
+
+          if (!timer.isRunning) {
+            continue;
+          }
+
+          if (timer.remainingDuration.inSeconds <= 1) {
+            final finishedTimer = timer.copyWith(
+              remainingDuration: Duration.zero,
+              hasFinished: true,
+            );
+            cookingTimers[index] = finishedTimer;
+            finishedTimers.add(finishedTimer);
+          } else {
+            cookingTimers[index] = timer.copyWith(
+              remainingDuration:
+                  timer.remainingDuration - const Duration(seconds: 1),
+            );
+          }
+        }
+      });
+
+      for (final timer in finishedTimers) {
+        showTimerFinishedDialog(timer);
+      }
+
+      if (!cookingTimers.any((timer) => timer.isRunning)) {
+        timerTicker?.cancel();
+        timerTicker = null;
+      }
     });
   }
 
-  void setAndStartTimer({required Duration duration, required String label}) {
-    setTimer(duration: duration, label: label);
-
-    if (duration.inSeconds > 0) {
-      startTimerWithDuration(duration);
-    }
-  }
-
-  void startTimerWithDuration(Duration duration) {
+  void addOrUpdateTimer({
+    required Duration duration,
+    required String label,
+    int? timerId,
+  }) {
     if (duration.inSeconds <= 0) {
       return;
     }
 
-    countdownTimer?.cancel();
-
     setState(() {
-      remainingTimerDuration = duration;
-      isTimerRunning = true;
-      hasTimerFinished = false;
+      final timerIndex = timerId == null
+          ? -1
+          : cookingTimers.indexWhere((timer) => timer.id == timerId);
+      final timer = CookingTimer(
+        id: timerIndex == -1 ? nextTimerId++ : timerId!,
+        duration: duration,
+        remainingDuration: duration,
+        label: label.trim(),
+      );
+
+      if (timerIndex == -1) {
+        cookingTimers.add(timer);
+      } else {
+        cookingTimers[timerIndex] = timer;
+      }
     });
 
-    countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (remainingTimerDuration.inSeconds <= 1) {
-        timer.cancel();
+    startTimerTickerIfNeeded();
+  }
 
-        if (!mounted) {
-          return;
-        }
+  void resetTimer(CookingTimer timer) {
+    setState(() {
+      final timerIndex = cookingTimers.indexWhere(
+        (item) => item.id == timer.id,
+      );
 
-        setState(() {
-          remainingTimerDuration = Duration.zero;
-          isTimerRunning = false;
-          hasTimerFinished = true;
-        });
-
-        showTimerFinishedDialog();
+      if (timerIndex == -1) {
         return;
       }
 
-      setState(() {
-        remainingTimerDuration -= const Duration(seconds: 1);
-      });
+      cookingTimers[timerIndex] = timer.copyWith(
+        remainingDuration: timer.duration,
+        hasFinished: false,
+      );
     });
+
+    startTimerTickerIfNeeded();
   }
 
-  void resetTimer() {
-    countdownTimer?.cancel();
-
+  void removeTimer(CookingTimer timer) {
     setState(() {
-      remainingTimerDuration = timerDuration;
-      isTimerRunning = false;
-      hasTimerFinished = false;
+      cookingTimers.removeWhere((item) => item.id == timer.id);
     });
+
+    if (!cookingTimers.any((timer) => timer.isRunning)) {
+      timerTicker?.cancel();
+      timerTicker = null;
+    }
   }
 
-  Future<void> openTimerSettings() async {
+  Future<void> openTimerSettings({CookingTimer? timer}) async {
     final settings = await showDialog<_TimerSettings>(
       context: context,
       builder: (context) {
         return _TimerSettingsDialog(
-          initialDuration: timerDuration,
-          initialLabel: timerLabel,
+          initialDuration: timer?.duration ?? Duration.zero,
+          initialLabel: timer?.label ?? '',
         );
       },
     );
@@ -208,10 +278,14 @@ class _CookingScreenState extends State<CookingScreen> {
       return;
     }
 
-    setAndStartTimer(duration: settings.duration, label: settings.label);
+    addOrUpdateTimer(
+      duration: settings.duration,
+      label: settings.label,
+      timerId: timer?.id,
+    );
   }
 
-  Future<void> showTimerFinishedDialog() async {
+  Future<void> showTimerFinishedDialog(CookingTimer timer) async {
     if (!mounted) {
       return;
     }
@@ -219,7 +293,7 @@ class _CookingScreenState extends State<CookingScreen> {
     await showDialog<void>(
       context: context,
       builder: (context) {
-        final title = timerLabel.trim().isEmpty ? 'Minuteur' : timerLabel;
+        final title = timer.label.trim().isEmpty ? 'Minuteur' : timer.label;
 
         return AlertDialog(
           title: const Text('Minuteur terminé'),
@@ -259,7 +333,7 @@ class _CookingScreenState extends State<CookingScreen> {
   }
 
   Future<void> finishCooking() async {
-    countdownTimer?.cancel();
+    timerTicker?.cancel();
     confettiController.play();
 
     await Future.delayed(const Duration(milliseconds: 2000));
@@ -342,14 +416,16 @@ class _CookingScreenState extends State<CookingScreen> {
       ),
       bottomNavigationBar: hasSteps
           ? _CookingFooter(
-              timer: _StepTimerBar(
-                label: timerLabel,
-                duration: timerDuration,
-                remainingDuration: remainingTimerDuration,
-                isRunning: isTimerRunning,
-                hasFinished: hasTimerFinished,
-                onOpenSettings: openTimerSettings,
-                onReset: resetTimer,
+              timer: _CookingTimersBar(
+                timers: cookingTimers,
+                onAddTimer: () {
+                  openTimerSettings();
+                },
+                onEditTimer: (timer) {
+                  openTimerSettings(timer: timer);
+                },
+                onResetTimer: resetTimer,
+                onRemoveTimer: removeTimer,
               ),
               navigation: _CookingNavigation(
                 canGoPrevious: canGoPrevious,
@@ -603,24 +679,20 @@ class _CookingFooter extends StatelessWidget {
   }
 }
 
-class _StepTimerBar extends StatelessWidget {
-  const _StepTimerBar({
-    required this.label,
-    required this.duration,
-    required this.remainingDuration,
-    required this.isRunning,
-    required this.hasFinished,
-    required this.onOpenSettings,
-    required this.onReset,
+class _CookingTimersBar extends StatelessWidget {
+  const _CookingTimersBar({
+    required this.timers,
+    required this.onAddTimer,
+    required this.onEditTimer,
+    required this.onResetTimer,
+    required this.onRemoveTimer,
   });
 
-  final String label;
-  final Duration duration;
-  final Duration remainingDuration;
-  final bool isRunning;
-  final bool hasFinished;
-  final VoidCallback onOpenSettings;
-  final VoidCallback onReset;
+  final List<CookingTimer> timers;
+  final VoidCallback onAddTimer;
+  final void Function(CookingTimer timer) onEditTimer;
+  final void Function(CookingTimer timer) onResetTimer;
+  final void Function(CookingTimer timer) onRemoveTimer;
 
   String formatDuration(Duration value) {
     final totalSeconds = value.inSeconds;
@@ -639,56 +711,164 @@ class _StepTimerBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final hasDuration = duration.inSeconds > 0;
 
     return Material(
       color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
       borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: colorScheme.outlineVariant),
+        ),
+        child: timers.isEmpty
+            ? InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: onAddTimer,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.timer_outlined, color: colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Ajouter un minuteur',
+                        style: TextStyle(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final timer in timers) ...[
+                      _CookingTimerChip(
+                        timer: timer,
+                        formattedDuration: formatDuration(
+                          timer.remainingDuration,
+                        ),
+                        onTap: () {
+                          onEditTimer(timer);
+                        },
+                        onReset: () {
+                          onResetTimer(timer);
+                        },
+                        onRemove: () {
+                          onRemoveTimer(timer);
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    IconButton.filledTonal(
+                      tooltip: 'Ajouter un minuteur',
+                      onPressed: onAddTimer,
+                      icon: const Icon(Icons.add),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _CookingTimerChip extends StatelessWidget {
+  const _CookingTimerChip({
+    required this.timer,
+    required this.formattedDuration,
+    required this.onTap,
+    required this.onReset,
+    required this.onRemove,
+  });
+
+  final CookingTimer timer;
+  final String formattedDuration;
+  final VoidCallback onTap;
+  final VoidCallback onReset;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: timer.hasFinished
+          ? colorScheme.errorContainer
+          : colorScheme.surface,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onOpenSettings,
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          constraints: const BoxConstraints(minWidth: 118, maxWidth: 190),
+          padding: const EdgeInsets.fromLTRB(10, 7, 4, 7),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: colorScheme.outlineVariant),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: timer.hasFinished
+                  ? colorScheme.error
+                  : colorScheme.outlineVariant,
+            ),
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.timer_outlined, color: colorScheme.primary),
-              const SizedBox(width: 10),
-              Expanded(
+              Icon(
+                timer.hasFinished ? Icons.alarm_on : Icons.timer_outlined,
+                color: timer.hasFinished
+                    ? colorScheme.error
+                    : colorScheme.primary,
+                size: 20,
+              ),
+              const SizedBox(width: 7),
+              Flexible(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      label.trim().isEmpty ? statusText(hasDuration) : label,
+                      timer.label.trim().isEmpty ? statusText : timer.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: colorScheme.onSurfaceVariant,
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     Text(
-                      formatDuration(remainingDuration),
+                      formattedDuration,
                       style: TextStyle(
-                        fontSize: 22,
+                        color: timer.hasFinished
+                            ? colorScheme.error
+                            : colorScheme.onSurface,
+                        fontSize: 18,
                         fontWeight: FontWeight.w900,
-                        color: getTimerColor(
-                          hasDuration: hasDuration,
-                          colorScheme: colorScheme,
-                        ),
                       ),
                     ),
                   ],
                 ),
               ),
               IconButton(
-                tooltip: 'Réinitialiser',
-                onPressed: hasDuration ? onReset : null,
+                tooltip: 'R�initialiser',
+                onPressed: onReset,
                 icon: const Icon(Icons.refresh),
+                visualDensity: VisualDensity.compact,
+              ),
+              IconButton(
+                tooltip: 'Supprimer',
+                onPressed: onRemove,
+                icon: const Icon(Icons.close),
                 visualDensity: VisualDensity.compact,
               ),
             ],
@@ -698,33 +878,16 @@ class _StepTimerBar extends StatelessWidget {
     );
   }
 
-  String get hasTimerFinishedText => hasFinished ? 'Terminé' : 'Prêt';
-
-  String statusText(bool hasDuration) {
-    if (!hasDuration) {
-      return 'Toucher pour régler';
-    }
-
-    if (isRunning) {
+  String get statusText {
+    if (timer.isRunning) {
       return 'En cours';
     }
 
-    return hasTimerFinishedText;
-  }
-
-  Color getTimerColor({
-    required bool hasDuration,
-    required ColorScheme colorScheme,
-  }) {
-    if (!hasDuration) {
-      return colorScheme.onSurfaceVariant;
+    if (timer.hasFinished) {
+      return 'Termin�';
     }
 
-    if (hasFinished) {
-      return colorScheme.error;
-    }
-
-    return colorScheme.onSurface;
+    return 'Pr�t';
   }
 }
 
