@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../data/ingredient_categories.dart';
+import '../data/pantry_ingredients.dart';
 import '../models/ingredient.dart';
 import '../models/recipe.dart';
 import '../services/unit_converter.dart';
@@ -18,6 +19,8 @@ class ShoppingListScreen extends StatefulWidget {
     required this.onEditRecipe,
     required this.ingredientCategoryUpdateCount,
     required this.onUpdateIngredientCategories,
+    required this.pantryIngredientNames,
+    required this.onUpdatePantryIngredientNames,
   });
 
   final List<Recipe> recipes;
@@ -28,6 +31,9 @@ class ShoppingListScreen extends StatefulWidget {
   final Future<void> Function(Recipe recipe) onEditRecipe;
   final int ingredientCategoryUpdateCount;
   final Future<void> Function() onUpdateIngredientCategories;
+  final List<String> pantryIngredientNames;
+  final Future<void> Function(Iterable<String> pantryIngredientNames)
+  onUpdatePantryIngredientNames;
 
   @override
   State<ShoppingListScreen> createState() => _ShoppingListScreenState();
@@ -62,6 +68,13 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
 
         for (final ingredient in recipe.ingredients) {
           if (!ingredient.includeInShoppingList) {
+            continue;
+          }
+
+          if (shouldExcludeFromShoppingList(
+            ingredientName: ingredient.name,
+            pantryIngredientNames: widget.pantryIngredientNames,
+          )) {
             continue;
           }
 
@@ -314,6 +327,20 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
     );
   }
 
+  void showPantryIngredientsSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return _PantryIngredientsSheet(
+          pantryIngredientNames: widget.pantryIngredientNames,
+          onSave: widget.onUpdatePantryIngredientNames,
+        );
+      },
+    );
+  }
+
   IconData getCategoryIcon(String category) {
     switch (category) {
       case 'Fruits & légumes':
@@ -421,6 +448,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
           isStoreModeEnabled: isStoreModeEnabled,
           hideCheckedItems: hideCheckedItems,
           ingredientCategoryUpdateCount: widget.ingredientCategoryUpdateCount,
+          pantryIngredientCount: widget.pantryIngredientNames.length,
           onToggleItemsToCheckFilter: itemsToCheckCount == 0
               ? null
               : () {
@@ -455,6 +483,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
               widget.ingredientCategoryUpdateCount == 0
               ? null
               : widget.onUpdateIngredientCategories,
+          onEditPantryIngredients: () {
+            showPantryIngredientsSheet(context);
+          },
         ),
         const SizedBox(height: 16),
         if (visibleShoppingItems.isEmpty)
@@ -495,11 +526,13 @@ class _ShoppingHeader extends StatelessWidget {
     required this.isStoreModeEnabled,
     required this.hideCheckedItems,
     required this.ingredientCategoryUpdateCount,
+    required this.pantryIngredientCount,
     required this.onToggleItemsToCheckFilter,
     required this.onToggleCategoryConflictFilter,
     required this.onToggleStoreMode,
     required this.onToggleHideCheckedItems,
     required this.onUpdateIngredientCategories,
+    required this.onEditPantryIngredients,
   });
 
   final int selectedMealsCount;
@@ -514,11 +547,13 @@ class _ShoppingHeader extends StatelessWidget {
   final bool isStoreModeEnabled;
   final bool hideCheckedItems;
   final int ingredientCategoryUpdateCount;
+  final int pantryIngredientCount;
   final VoidCallback? onToggleItemsToCheckFilter;
   final VoidCallback? onToggleCategoryConflictFilter;
   final VoidCallback onToggleStoreMode;
   final VoidCallback? onToggleHideCheckedItems;
   final Future<void> Function()? onUpdateIngredientCategories;
+  final VoidCallback onEditPantryIngredients;
 
   @override
   Widget build(BuildContext context) {
@@ -590,6 +625,11 @@ class _ShoppingHeader extends StatelessWidget {
                   onPressed: onShare,
                   icon: const Icon(Icons.share),
                   label: const Text('Partager'),
+                ),
+                ActionChip(
+                  onPressed: onEditPantryIngredients,
+                  avatar: const Icon(Icons.inventory_2_outlined, size: 18),
+                  label: Text('Stock maison ($pantryIngredientCount)'),
                 ),
                 if (itemsToCheckCount > 0)
                   FilterChip(
@@ -1044,6 +1084,161 @@ class _ShoppingItemDetailsSheet extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _PantryIngredientsSheet extends StatefulWidget {
+  const _PantryIngredientsSheet({
+    required this.pantryIngredientNames,
+    required this.onSave,
+  });
+
+  final List<String> pantryIngredientNames;
+  final Future<void> Function(Iterable<String> pantryIngredientNames) onSave;
+
+  @override
+  State<_PantryIngredientsSheet> createState() =>
+      _PantryIngredientsSheetState();
+}
+
+class _PantryIngredientsSheetState extends State<_PantryIngredientsSheet> {
+  late final TextEditingController ingredientController;
+  late List<String> pantryIngredientNames;
+  bool isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ingredientController = TextEditingController();
+    pantryIngredientNames = normalizePantryIngredientNames(
+      widget.pantryIngredientNames,
+    );
+  }
+
+  @override
+  void dispose() {
+    ingredientController.dispose();
+    super.dispose();
+  }
+
+  void addIngredient() {
+    final name = ingredientController.text.trim();
+
+    if (name.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      pantryIngredientNames = normalizePantryIngredientNames([
+        ...pantryIngredientNames,
+        name,
+      ]);
+      ingredientController.clear();
+    });
+  }
+
+  Future<void> save() async {
+    setState(() {
+      isSaving = true;
+    });
+
+    await widget.onSave(pantryIngredientNames);
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+        ),
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Text(
+              'Stock maison',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Ces ingrédients restent dans les recettes, mais ne sont pas ajoutés aux courses.',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: ingredientController,
+                    textInputAction: TextInputAction.done,
+                    decoration: const InputDecoration(
+                      labelText: 'Ajouter un ingrédient',
+                      hintText: 'Ex : moutarde',
+                      prefixIcon: Icon(Icons.inventory_2_outlined),
+                    ),
+                    onSubmitted: (_) {
+                      addIngredient();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  tooltip: 'Ajouter',
+                  onPressed: addIngredient,
+                  icon: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (pantryIngredientNames.isEmpty)
+              const Text('Aucun ingrédient dans le stock maison.')
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final ingredientName in pantryIngredientNames)
+                    InputChip(
+                      label: Text(ingredientName),
+                      onDeleted: () {
+                        setState(() {
+                          pantryIngredientNames = [
+                            for (final name in pantryIngredientNames)
+                              if (name != ingredientName) name,
+                          ];
+                        });
+                      },
+                    ),
+                ],
+              ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: isSaving ? null : save,
+              icon: isSaving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+              label: const Text('Enregistrer'),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -166,7 +166,8 @@ class _BackupScreenState extends State<BackupScreen> {
             'Cette sauvegarde contient :\n\n'
             '- ${importedData.recipes.length} recette(s)\n'
             '- ${importedData.weeklyPlanning.length} repas planifié(s)\n'
-            '- ${importedData.checkedShoppingItems.length} article(s) coché(s)\n\n'
+            '- ${importedData.checkedShoppingItems.length} article(s) coché(s)\n'
+            '- ${importedData.pantryIngredientNames.length} ingrédient(s) de stock maison\n\n'
             'Attention : tes données actuelles seront remplacées.',
           ),
           actions: [
@@ -192,6 +193,7 @@ class _BackupScreenState extends State<BackupScreen> {
   Widget build(BuildContext context) {
     final recipesCount = widget.appData.recipes.length;
     final planningCount = widget.appData.weeklyPlanning.length;
+    final pantryIngredientCount = widget.appData.pantryIngredientNames.length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Sauvegarde')),
@@ -213,6 +215,7 @@ class _BackupScreenState extends State<BackupScreen> {
                   const SizedBox(height: 8),
                   Text('$recipesCount recette(s) enregistrée(s)'),
                   Text('$planningCount repas planifié(s)'),
+                  Text('$pantryIngredientCount ingrédient(s) de stock maison'),
                 ],
               ),
             ),

@@ -15,6 +15,7 @@ class BackupService {
       'recipes': appData.recipes.map((recipe) => recipe.toJson()).toList(),
       'weeklyPlanning': appData.weeklyPlanning,
       'checkedShoppingItems': appData.checkedShoppingItems.toList(),
+      'pantryIngredientNames': appData.pantryIngredientNames,
     };
 
     const encoder = JsonEncoder.withIndent('  ');
@@ -47,9 +48,7 @@ class BackupService {
     }
 
     final recipes = rawRecipes.map((item) {
-      return Recipe.fromJson(
-        Map<String, dynamic>.from(item as Map),
-      );
+      return Recipe.fromJson(Map<String, dynamic>.from(item as Map));
     }).toList();
 
     final weeklyPlanning = <String, String>{};
@@ -70,10 +69,20 @@ class BackupService {
       );
     }
 
+    final pantryIngredientNames = <String>[];
+    final rawPantryIngredients = json['pantryIngredientNames'];
+
+    if (rawPantryIngredients is List) {
+      pantryIngredientNames.addAll(
+        rawPantryIngredients.map((item) => item.toString()),
+      );
+    }
+
     return AppData(
       recipes: recipes,
       weeklyPlanning: weeklyPlanning,
       checkedShoppingItems: checkedShoppingItems,
+      pantryIngredientNames: pantryIngredientNames,
     );
   }
 

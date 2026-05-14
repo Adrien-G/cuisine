@@ -43,6 +43,7 @@ class _FakeStorageService extends StorageService {
     required List<Recipe> recipes,
     required Map<String, String> weeklyPlanning,
     required Set<String> checkedShoppingItems,
+    required List<String> pantryIngredientNames,
   }) async {
     saveCount++;
   }

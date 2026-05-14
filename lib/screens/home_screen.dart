@@ -307,6 +307,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> updatePantryIngredientNames(
+    Iterable<String> pantryIngredientNames,
+  ) async {
+    await cuisineController.updatePantryIngredientNames(pantryIngredientNames);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+    showSnackBar('Stock maison mis à jour.');
+  }
+
   Future<void> setSpecialMealForSlot(String slotId, String label) async {
     final specialMealLabel = await cuisineController.setSpecialMealForSlot(
       slotId,
@@ -476,6 +489,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ingredientCategoryUpdateCount: cuisineController
               .countSafeIngredientCategoryUpdates(),
           onUpdateIngredientCategories: updateSafeIngredientCategories,
+          pantryIngredientNames: cuisineController.pantryIngredientNames,
+          onUpdatePantryIngredientNames: updatePantryIngredientNames,
         );
       default:
         return RecipesScreen(

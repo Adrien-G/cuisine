@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../data/meal_slots.dart';
+import '../data/pantry_ingredients.dart';
 import '../data/planning_entries.dart';
 import '../models/ingredient.dart';
 import '../models/recipe.dart';
@@ -45,12 +46,14 @@ class CuisineController {
   final List<Recipe> recipes = [];
   final Map<String, String> weeklyPlanning = {};
   final Set<String> checkedShoppingItems = {};
+  final List<String> pantryIngredientNames = [];
 
   AppData get appData {
     return AppData(
       recipes: List<Recipe>.from(recipes),
       weeklyPlanning: Map<String, String>.from(weeklyPlanning),
       checkedShoppingItems: Set<String>.from(checkedShoppingItems),
+      pantryIngredientNames: List<String>.from(pantryIngredientNames),
     );
   }
 
@@ -74,6 +77,10 @@ class CuisineController {
       ..clear()
       ..addAll(appData.checkedShoppingItems);
 
+    pantryIngredientNames
+      ..clear()
+      ..addAll(appData.pantryIngredientNames);
+
     isLoading = false;
 
     if (hasLegacyPlanning) {
@@ -86,6 +93,7 @@ class CuisineController {
       recipes: recipes,
       weeklyPlanning: weeklyPlanning,
       checkedShoppingItems: checkedShoppingItems,
+      pantryIngredientNames: pantryIngredientNames,
     );
   }
 
@@ -101,6 +109,14 @@ class CuisineController {
     checkedShoppingItems
       ..clear()
       ..addAll(importedData.checkedShoppingItems);
+
+    pantryIngredientNames
+      ..clear()
+      ..addAll(
+        importedData.pantryIngredientNames.isEmpty
+            ? normalizePantryIngredientNames(defaultPantryIngredientNames)
+            : importedData.pantryIngredientNames,
+      );
 
     await saveData();
   }
@@ -134,6 +150,18 @@ class CuisineController {
     if (index != -1) {
       recipes[index] = updatedRecipe;
     }
+
+    checkedShoppingItems.clear();
+
+    await saveData();
+  }
+
+  Future<void> updatePantryIngredientNames(
+    Iterable<String> updatedIngredientNames,
+  ) async {
+    pantryIngredientNames
+      ..clear()
+      ..addAll(normalizePantryIngredientNames(updatedIngredientNames));
 
     checkedShoppingItems.clear();
 
