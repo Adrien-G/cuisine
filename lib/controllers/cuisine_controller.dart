@@ -48,6 +48,29 @@ class RecordPlannedMealsResult {
   bool get hasNewEntries => addedEntriesCount > 0;
 }
 
+class MergeBackupResult {
+  const MergeBackupResult({
+    required this.addedRecipesCount,
+    required this.updatedRecipesCount,
+    required this.addedPantryIngredientsCount,
+    required this.addedMealHistoryEntriesCount,
+  });
+
+  final int addedRecipesCount;
+  final int updatedRecipesCount;
+  final int addedPantryIngredientsCount;
+  final int addedMealHistoryEntriesCount;
+
+  int get totalChanges {
+    return addedRecipesCount +
+        updatedRecipesCount +
+        addedPantryIngredientsCount +
+        addedMealHistoryEntriesCount;
+  }
+
+  bool get hasChanges => totalChanges > 0;
+}
+
 class CuisineController {
   CuisineController({StorageService? storageService})
     : _storageService = storageService ?? StorageService();
@@ -143,6 +166,97 @@ class CuisineController {
       ..addAll(importedData.mealHistoryEntries);
 
     await saveData();
+  }
+
+  Future<MergeBackupResult> mergeDataFromBackup(AppData importedData) async {
+    var addedRecipesCount = 0;
+    var updatedRecipesCount = 0;
+    var addedPantryIngredientsCount = 0;
+    var addedMealHistoryEntriesCount = 0;
+
+    final recipesById = {for (final recipe in recipes) recipe.id: recipe};
+
+    for (final importedRecipe in importedData.recipes) {
+      final existingRecipe = recipesById[importedRecipe.id];
+
+      if (existingRecipe == null) {
+        recipes.add(importedRecipe);
+        recipesById[importedRecipe.id] = importedRecipe;
+        addedRecipesCount++;
+        continue;
+      }
+
+      if (recipeContentSignature(existingRecipe) !=
+          recipeContentSignature(importedRecipe)) {
+        final index = recipes.indexWhere((recipe) {
+          return recipe.id == importedRecipe.id;
+        });
+
+        if (index != -1) {
+          recipes[index] = importedRecipe;
+          recipesById[importedRecipe.id] = importedRecipe;
+          updatedRecipesCount++;
+        }
+      }
+    }
+
+    final mergedPantryIngredientNames = [
+      ...pantryIngredientNames,
+      ...importedData.pantryIngredientNames,
+    ];
+    final previousPantryIngredientCount = pantryIngredientNames.length;
+    pantryIngredientNames
+      ..clear()
+      ..addAll(normalizePantryIngredientNames(mergedPantryIngredientNames));
+    addedPantryIngredientsCount =
+        pantryIngredientNames.length - previousPantryIngredientCount;
+
+    final mealHistoryIds = mealHistoryEntries.map((entry) => entry.id).toSet();
+
+    for (final importedEntry in importedData.mealHistoryEntries) {
+      if (mealHistoryIds.add(importedEntry.id)) {
+        mealHistoryEntries.add(importedEntry);
+        addedMealHistoryEntriesCount++;
+      }
+    }
+
+    sortMealHistoryEntries();
+
+    if (addedRecipesCount > 0 ||
+        updatedRecipesCount > 0 ||
+        addedPantryIngredientsCount > 0 ||
+        addedMealHistoryEntriesCount > 0) {
+      checkedShoppingItems.clear();
+      await saveData();
+    }
+
+    return MergeBackupResult(
+      addedRecipesCount: addedRecipesCount,
+      updatedRecipesCount: updatedRecipesCount,
+      addedPantryIngredientsCount: addedPantryIngredientsCount,
+      addedMealHistoryEntriesCount: addedMealHistoryEntriesCount,
+    );
+  }
+
+  String recipeContentSignature(Recipe recipe) {
+    return [
+      recipe.name,
+      recipe.steps,
+      recipe.tags.join('|'),
+      recipe.prepTimeMinutes?.toString() ?? '',
+      recipe.cookTimeMinutes?.toString() ?? '',
+      recipe.difficulty,
+      recipe.emoji,
+      recipe.isFavorite.toString(),
+      for (final ingredient in recipe.ingredients)
+        [
+          ingredient.name,
+          ingredient.quantity?.toString() ?? '',
+          ingredient.unit,
+          ingredient.category,
+          ingredient.includeInShoppingList.toString(),
+        ].join('~'),
+    ].join('||');
   }
 
   Future<void> addRecipe(Recipe newRecipe) async {

@@ -14,10 +14,12 @@ class BackupScreen extends StatefulWidget {
     super.key,
     required this.appData,
     required this.onRestoreData,
+    required this.onMergeData,
   });
 
   final AppData appData;
   final Future<void> Function(AppData appData) onRestoreData;
+  final Future<void> Function(AppData appData) onMergeData;
 
   @override
   State<BackupScreen> createState() => _BackupScreenState();
@@ -108,13 +110,18 @@ class _BackupScreenState extends State<BackupScreen> {
         return;
       }
 
-      final shouldRestore = await confirmRestore(importedData);
+      final importMode = await confirmImport(importedData);
 
-      if (shouldRestore != true) {
+      if (importMode == null) {
         return;
       }
 
-      await widget.onRestoreData(importedData);
+      switch (importMode) {
+        case _BackupImportMode.merge:
+          await widget.onMergeData(importedData);
+        case _BackupImportMode.replace:
+          await widget.onRestoreData(importedData);
+      }
 
       if (!mounted) {
         return;
@@ -123,7 +130,9 @@ class _BackupScreenState extends State<BackupScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Sauvegarde importée : ${importedData.recipes.length} recette(s).',
+            importMode == _BackupImportMode.merge
+                ? 'Données fusionnées : ${importedData.recipes.length} recette(s) analysée(s).'
+                : 'Sauvegarde importée : ${importedData.recipes.length} recette(s).',
           ),
         ),
       );
@@ -156,8 +165,8 @@ class _BackupScreenState extends State<BackupScreen> {
     }
   }
 
-  Future<bool?> confirmRestore(AppData importedData) {
-    return showDialog<bool>(
+  Future<_BackupImportMode?> confirmImport(AppData importedData) {
+    return showDialog<_BackupImportMode>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -169,20 +178,26 @@ class _BackupScreenState extends State<BackupScreen> {
             '- ${importedData.checkedShoppingItems.length} article(s) coché(s)\n'
             '- ${importedData.pantryIngredientNames.length} ingrédient(s) de stock maison\n'
             '- ${importedData.mealHistoryEntries.length} repas dans l’historique\n\n'
-            'Attention : tes données actuelles seront remplacées.',
+            'Tu peux fusionner les recettes avec tes données actuelles ou tout remplacer.',
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(false);
+                Navigator.of(context).pop();
               },
               child: const Text('Annuler'),
             ),
+            OutlinedButton(
+              onPressed: () {
+                Navigator.of(context).pop(_BackupImportMode.replace);
+              },
+              child: const Text('Remplacer'),
+            ),
             FilledButton(
               onPressed: () {
-                Navigator.of(context).pop(true);
+                Navigator.of(context).pop(_BackupImportMode.merge);
               },
-              child: const Text('Importer'),
+              child: const Text('Fusionner'),
             ),
           ],
         );
@@ -328,3 +343,5 @@ class _BackupHeader extends StatelessWidget {
     );
   }
 }
+
+enum _BackupImportMode { merge, replace }
