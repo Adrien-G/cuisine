@@ -6,45 +6,52 @@ import 'package:cuisine/services/storage_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('fusionne les nouvelles donnees sans remplacer le planning', () async {
-    final storage = _FakeStorageService();
-    final controller = CuisineController(storageService: storage);
+  test(
+    'fusionne les nouvelles donnees sans ecraser le planning local',
+    () async {
+      final storage = _FakeStorageService();
+      final controller = CuisineController(storageService: storage);
 
-    controller.recipes.add(
-      const Recipe(
-        id: 'local',
-        name: 'Recette locale',
-        ingredients: [Ingredient(name: 'riz')],
-        steps: 'Cuire.',
-      ),
-    );
-    controller.weeklyPlanning['lundi_soir'] = 'local';
-    controller.pantryIngredientNames.add('sel');
-
-    final importedData = AppData(
-      recipes: const [
-        Recipe(
-          id: 'remote',
-          name: 'Recette distante',
-          ingredients: [Ingredient(name: 'pâtes')],
+      controller.recipes.add(
+        const Recipe(
+          id: 'local',
+          name: 'Recette locale',
+          ingredients: [Ingredient(name: 'riz')],
           steps: 'Cuire.',
         ),
-      ],
-      weeklyPlanning: const {'mardi_soir': 'remote'},
-      checkedShoppingItems: const {},
-      pantryIngredientNames: const ['poivre'],
-      mealHistoryEntries: const [],
-    );
+      );
+      controller.weeklyPlanning['lundi_soir'] = 'local';
+      controller.pantryIngredientNames.add('sel');
 
-    final result = await controller.mergeDataFromBackup(importedData);
+      final importedData = AppData(
+        recipes: const [
+          Recipe(
+            id: 'remote',
+            name: 'Recette distante',
+            ingredients: [Ingredient(name: 'pâtes')],
+            steps: 'Cuire.',
+          ),
+        ],
+        weeklyPlanning: const {'lundi_soir': 'remote', 'mardi_soir': 'remote'},
+        checkedShoppingItems: const {},
+        pantryIngredientNames: const ['poivre'],
+        mealHistoryEntries: const [],
+      );
 
-    expect(result.addedRecipesCount, 1);
-    expect(controller.recipes.map((recipe) => recipe.id), contains('local'));
-    expect(controller.recipes.map((recipe) => recipe.id), contains('remote'));
-    expect(controller.weeklyPlanning, {'lundi_soir': 'local'});
-    expect(controller.pantryIngredientNames, containsAll(['sel', 'poivre']));
-    expect(storage.saveCount, 1);
-  });
+      final result = await controller.mergeDataFromBackup(importedData);
+
+      expect(result.addedRecipesCount, 1);
+      expect(result.addedPlanningEntriesCount, 1);
+      expect(controller.recipes.map((recipe) => recipe.id), contains('local'));
+      expect(controller.recipes.map((recipe) => recipe.id), contains('remote'));
+      expect(controller.weeklyPlanning, {
+        'lundi_soir': 'local',
+        'mardi_soir': 'remote',
+      });
+      expect(controller.pantryIngredientNames, containsAll(['sel', 'poivre']));
+      expect(storage.saveCount, 1);
+    },
+  );
 
   test('met a jour une recette existante avec le meme identifiant', () async {
     final storage = _FakeStorageService();

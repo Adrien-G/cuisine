@@ -24,6 +24,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Scanner un QR code pour synchroniser les recettes avec un autre appareil.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Synchroniser les recettes avec un autre appareil sur le même réseau Wi-Fi.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

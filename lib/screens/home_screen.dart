@@ -66,6 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context) {
           return BackupScreen(
             appData: cuisineController.appData,
+            getAppData: () => cuisineController.appData,
             onRestoreData: restoreDataFromBackup,
             onMergeData: mergeDataFromBackup,
           );
@@ -86,26 +87,18 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> mergeDataFromBackup(AppData importedData) async {
+  Future<MergeBackupResult> mergeDataFromBackup(AppData importedData) async {
     final result = await cuisineController.mergeDataFromBackup(importedData);
 
     if (!mounted) {
-      return;
+      return result;
     }
 
     setState(() {
       selectedIndex = 0;
     });
 
-    if (!result.hasChanges) {
-      showSnackBar('Aucune nouveauté à fusionner.');
-      return;
-    }
-
-    showSnackBar(
-      'Fusion terminée : ${result.addedRecipesCount} recette(s) ajoutée(s), '
-      '${result.updatedRecipesCount} mise(s) à jour.',
-    );
+    return result;
   }
 
   Future<void> openAddRecipeScreen() async {

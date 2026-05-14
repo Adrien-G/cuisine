@@ -52,18 +52,21 @@ class MergeBackupResult {
   const MergeBackupResult({
     required this.addedRecipesCount,
     required this.updatedRecipesCount,
+    required this.addedPlanningEntriesCount,
     required this.addedPantryIngredientsCount,
     required this.addedMealHistoryEntriesCount,
   });
 
   final int addedRecipesCount;
   final int updatedRecipesCount;
+  final int addedPlanningEntriesCount;
   final int addedPantryIngredientsCount;
   final int addedMealHistoryEntriesCount;
 
   int get totalChanges {
     return addedRecipesCount +
         updatedRecipesCount +
+        addedPlanningEntriesCount +
         addedPantryIngredientsCount +
         addedMealHistoryEntriesCount;
   }
@@ -171,6 +174,7 @@ class CuisineController {
   Future<MergeBackupResult> mergeDataFromBackup(AppData importedData) async {
     var addedRecipesCount = 0;
     var updatedRecipesCount = 0;
+    var addedPlanningEntriesCount = 0;
     var addedPantryIngredientsCount = 0;
     var addedMealHistoryEntriesCount = 0;
 
@@ -200,6 +204,17 @@ class CuisineController {
       }
     }
 
+    final migratedImportedPlanning = migrateLegacyPlanning(
+      importedData.weeklyPlanning,
+    );
+
+    for (final entry in migratedImportedPlanning.entries) {
+      if (!weeklyPlanning.containsKey(entry.key)) {
+        weeklyPlanning[entry.key] = entry.value;
+        addedPlanningEntriesCount++;
+      }
+    }
+
     final mergedPantryIngredientNames = [
       ...pantryIngredientNames,
       ...importedData.pantryIngredientNames,
@@ -224,6 +239,7 @@ class CuisineController {
 
     if (addedRecipesCount > 0 ||
         updatedRecipesCount > 0 ||
+        addedPlanningEntriesCount > 0 ||
         addedPantryIngredientsCount > 0 ||
         addedMealHistoryEntriesCount > 0) {
       checkedShoppingItems.clear();
@@ -233,6 +249,7 @@ class CuisineController {
     return MergeBackupResult(
       addedRecipesCount: addedRecipesCount,
       updatedRecipesCount: updatedRecipesCount,
+      addedPlanningEntriesCount: addedPlanningEntriesCount,
       addedPantryIngredientsCount: addedPantryIngredientsCount,
       addedMealHistoryEntriesCount: addedMealHistoryEntriesCount,
     );

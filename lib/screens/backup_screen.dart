@@ -6,20 +6,24 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../controllers/cuisine_controller.dart';
 import '../services/backup_service.dart';
+import 'local_sync_screen.dart';
 import '../services/storage_service.dart';
 
 class BackupScreen extends StatefulWidget {
   const BackupScreen({
     super.key,
     required this.appData,
+    required this.getAppData,
     required this.onRestoreData,
     required this.onMergeData,
   });
 
   final AppData appData;
+  final AppData Function() getAppData;
   final Future<void> Function(AppData appData) onRestoreData;
-  final Future<void> Function(AppData appData) onMergeData;
+  final Future<MergeBackupResult> Function(AppData appData) onMergeData;
 
   @override
   State<BackupScreen> createState() => _BackupScreenState();
@@ -116,9 +120,11 @@ class _BackupScreenState extends State<BackupScreen> {
         return;
       }
 
+      MergeBackupResult? mergeResult;
+
       switch (importMode) {
         case _BackupImportMode.merge:
-          await widget.onMergeData(importedData);
+          mergeResult = await widget.onMergeData(importedData);
         case _BackupImportMode.replace:
           await widget.onRestoreData(importedData);
       }
@@ -131,7 +137,7 @@ class _BackupScreenState extends State<BackupScreen> {
         SnackBar(
           content: Text(
             importMode == _BackupImportMode.merge
-                ? 'Données fusionnées : ${importedData.recipes.length} recette(s) analysée(s).'
+                ? buildMergeSummary(mergeResult)
                 : 'Sauvegarde importée : ${importedData.recipes.length} recette(s).',
           ),
         ),
@@ -163,6 +169,29 @@ class _BackupScreenState extends State<BackupScreen> {
         });
       }
     }
+  }
+
+  String buildMergeSummary(MergeBackupResult? result) {
+    if (result == null || !result.hasChanges) {
+      return 'Aucune nouveauté à fusionner.';
+    }
+
+    return 'Fusion terminée : ${result.addedRecipesCount} recette(s) ajoutée(s), '
+        '${result.updatedRecipesCount} mise(s) à jour, '
+        '${result.addedPlanningEntriesCount} repas planifié(s).';
+  }
+
+  void openLocalSyncScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) {
+          return LocalSyncScreen(
+            getAppData: widget.getAppData,
+            onMergeData: widget.onMergeData,
+          );
+        },
+      ),
+    );
   }
 
   Future<_BackupImportMode?> confirmImport(AppData importedData) {
@@ -270,6 +299,17 @@ class _BackupScreenState extends State<BackupScreen> {
                     )
                   : const Icon(Icons.chevron_right),
               onTap: isImporting ? null : importBackup,
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.sync_alt_outlined),
+              title: const Text('Synchroniser en Wi-Fi'),
+              subtitle: const Text(
+                'Échanger les recettes avec un autre appareil via QR code.',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: openLocalSyncScreen,
             ),
           ),
           const SizedBox(height: 12),
