@@ -4,6 +4,7 @@ import '../data/meal_slots.dart';
 import '../data/pantry_ingredients.dart';
 import '../data/planning_entries.dart';
 import '../models/ingredient.dart';
+import '../models/meal_history_entry.dart';
 import '../models/recipe.dart';
 import '../services/recipe_text_parser.dart';
 import '../services/seasonality_service.dart';
@@ -35,6 +36,18 @@ class IngredientCategoryMaintenanceResult {
   bool get hasUpdates => updatedIngredientsCount > 0;
 }
 
+class RecordPlannedMealsResult {
+  const RecordPlannedMealsResult({
+    required this.addedEntriesCount,
+    required this.hasPlannedRecipes,
+  });
+
+  final int addedEntriesCount;
+  final bool hasPlannedRecipes;
+
+  bool get hasNewEntries => addedEntriesCount > 0;
+}
+
 class CuisineController {
   CuisineController({StorageService? storageService})
     : _storageService = storageService ?? StorageService();
@@ -47,6 +60,7 @@ class CuisineController {
   final Map<String, String> weeklyPlanning = {};
   final Set<String> checkedShoppingItems = {};
   final List<String> pantryIngredientNames = [];
+  final List<MealHistoryEntry> mealHistoryEntries = [];
 
   AppData get appData {
     return AppData(
@@ -54,6 +68,7 @@ class CuisineController {
       weeklyPlanning: Map<String, String>.from(weeklyPlanning),
       checkedShoppingItems: Set<String>.from(checkedShoppingItems),
       pantryIngredientNames: List<String>.from(pantryIngredientNames),
+      mealHistoryEntries: List<MealHistoryEntry>.from(mealHistoryEntries),
     );
   }
 
@@ -81,6 +96,10 @@ class CuisineController {
       ..clear()
       ..addAll(appData.pantryIngredientNames);
 
+    mealHistoryEntries
+      ..clear()
+      ..addAll(appData.mealHistoryEntries);
+
     isLoading = false;
 
     if (hasLegacyPlanning) {
@@ -94,6 +113,7 @@ class CuisineController {
       weeklyPlanning: weeklyPlanning,
       checkedShoppingItems: checkedShoppingItems,
       pantryIngredientNames: pantryIngredientNames,
+      mealHistoryEntries: mealHistoryEntries,
     );
   }
 
@@ -117,6 +137,10 @@ class CuisineController {
             ? normalizePantryIngredientNames(defaultPantryIngredientNames)
             : importedData.pantryIngredientNames,
       );
+
+    mealHistoryEntries
+      ..clear()
+      ..addAll(importedData.mealHistoryEntries);
 
     await saveData();
   }
@@ -365,6 +389,119 @@ class CuisineController {
     await saveData();
   }
 
+  Future<RecordPlannedMealsResult> recordPlannedMealsAsCooked() async {
+    final newEntries = buildMealHistoryEntriesFromPlanning();
+
+    if (newEntries.isEmpty) {
+      return const RecordPlannedMealsResult(
+        addedEntriesCount: 0,
+        hasPlannedRecipes: false,
+      );
+    }
+
+    final existingEntryIds = mealHistoryEntries
+        .map((entry) => entry.id)
+        .toSet();
+    final entriesToAdd = newEntries.where((entry) {
+      return !existingEntryIds.contains(entry.id);
+    }).toList();
+
+    if (entriesToAdd.isEmpty) {
+      return const RecordPlannedMealsResult(
+        addedEntriesCount: 0,
+        hasPlannedRecipes: true,
+      );
+    }
+
+    mealHistoryEntries.addAll(entriesToAdd);
+    sortMealHistoryEntries();
+
+    await saveData();
+
+    return RecordPlannedMealsResult(
+      addedEntriesCount: entriesToAdd.length,
+      hasPlannedRecipes: true,
+    );
+  }
+
+  List<MealHistoryEntry> buildMealHistoryEntriesFromPlanning() {
+    final weekStart = getCurrentWeekStart();
+    final entries = <MealHistoryEntry>[];
+
+    for (final slot in mealSlots) {
+      final planningValue = weeklyPlanning[slot.id];
+
+      if (planningValue == null) {
+        continue;
+      }
+
+      final recipeIds = getRecipeIdsFromPlanningValue(planningValue);
+
+      if (recipeIds.isEmpty) {
+        continue;
+      }
+
+      final cookedAt = getCookedAtForSlot(slot, weekStart);
+
+      for (final recipeId in recipeIds) {
+        final recipe = getRecipeById(recipeId);
+
+        if (recipe == null) {
+          continue;
+        }
+
+        entries.add(
+          MealHistoryEntry(
+            id: buildMealHistoryEntryId(
+              cookedAt: cookedAt,
+              slotId: slot.id,
+              recipeId: recipe.id,
+            ),
+            recipeId: recipe.id,
+            recipeName: recipe.name,
+            recipeEmoji: recipe.emoji,
+            slotId: slot.id,
+            slotLabel: slot.label,
+            cookedAt: cookedAt,
+          ),
+        );
+      }
+    }
+
+    return entries;
+  }
+
+  DateTime getCurrentWeekStart() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return today.subtract(Duration(days: today.weekday - DateTime.monday));
+  }
+
+  DateTime getCookedAtForSlot(MealSlot slot, DateTime weekStart) {
+    final dayIndex = mealSlotDays.indexOf(slot.day);
+    final safeDayIndex = dayIndex == -1 ? 0 : dayIndex;
+    final hour = slot.meal == 'Midi' ? 12 : 19;
+
+    return weekStart.add(Duration(days: safeDayIndex, hours: hour));
+  }
+
+  String buildMealHistoryEntryId({
+    required DateTime cookedAt,
+    required String slotId,
+    required String recipeId,
+  }) {
+    final date = cookedAt.toIso8601String().split('T').first;
+
+    return '$date|$slotId|$recipeId';
+  }
+
+  void sortMealHistoryEntries() {
+    mealHistoryEntries.sort((a, b) {
+      return b.cookedAt.compareTo(a.cookedAt);
+    });
+  }
+
   Future<FillPlanningResult> fillEmptySlotsRandomly({
     bool isVacationMode = false,
   }) async {
@@ -525,13 +662,24 @@ class CuisineController {
     final vacationScore = isVacationMode
         ? getVacationCompatibilityScore(recipe)
         : 0;
+    final recentHistoryScore = getRecentHistoryScore(recipe);
 
     return usageScore +
         typeScore +
         repetitionScore +
         timeScore +
         seasonalityScore +
-        vacationScore;
+        vacationScore +
+        recentHistoryScore;
+  }
+
+  int getRecentHistoryScore(Recipe recipe) {
+    final cutoffDate = DateTime.now().subtract(const Duration(days: 21));
+    final recentCount = mealHistoryEntries.where((entry) {
+      return entry.recipeId == recipe.id && entry.cookedAt.isAfter(cutoffDate);
+    }).length;
+
+    return recentCount * 80;
   }
 
   Recipe? chooseAccompanimentForSlot({

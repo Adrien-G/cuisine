@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../models/meal_history_entry.dart';
 import '../models/recipe.dart';
 import 'storage_service.dart';
 
@@ -16,6 +17,9 @@ class BackupService {
       'weeklyPlanning': appData.weeklyPlanning,
       'checkedShoppingItems': appData.checkedShoppingItems.toList(),
       'pantryIngredientNames': appData.pantryIngredientNames,
+      'mealHistoryEntries': appData.mealHistoryEntries
+          .map((entry) => entry.toJson())
+          .toList(),
     };
 
     const encoder = JsonEncoder.withIndent('  ');
@@ -78,11 +82,23 @@ class BackupService {
       );
     }
 
+    final mealHistoryEntries = <MealHistoryEntry>[];
+    final rawMealHistory = json['mealHistoryEntries'];
+
+    if (rawMealHistory is List) {
+      for (final item in rawMealHistory) {
+        mealHistoryEntries.add(
+          MealHistoryEntry.fromJson(Map<String, dynamic>.from(item as Map)),
+        );
+      }
+    }
+
     return AppData(
       recipes: recipes,
       weeklyPlanning: weeklyPlanning,
       checkedShoppingItems: checkedShoppingItems,
       pantryIngredientNames: pantryIngredientNames,
+      mealHistoryEntries: mealHistoryEntries,
     );
   }
 

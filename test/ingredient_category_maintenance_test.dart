@@ -1,5 +1,6 @@
 import 'package:cuisine/controllers/cuisine_controller.dart';
 import 'package:cuisine/models/ingredient.dart';
+import 'package:cuisine/models/meal_history_entry.dart';
 import 'package:cuisine/models/recipe.dart';
 import 'package:cuisine/services/storage_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,6 +45,7 @@ class _FakeStorageService extends StorageService {
     required Map<String, String> weeklyPlanning,
     required Set<String> checkedShoppingItems,
     required List<String> pantryIngredientNames,
+    required List<MealHistoryEntry> mealHistoryEntries,
   }) async {
     saveCount++;
   }

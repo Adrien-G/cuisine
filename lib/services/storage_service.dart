@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/pantry_ingredients.dart';
+import '../models/meal_history_entry.dart';
 import '../models/recipe.dart';
 
 class AppData {
@@ -11,12 +12,14 @@ class AppData {
     required this.weeklyPlanning,
     required this.checkedShoppingItems,
     required this.pantryIngredientNames,
+    required this.mealHistoryEntries,
   });
 
   final List<Recipe> recipes;
   final Map<String, String> weeklyPlanning;
   final Set<String> checkedShoppingItems;
   final List<String> pantryIngredientNames;
+  final List<MealHistoryEntry> mealHistoryEntries;
 }
 
 class StorageService {
@@ -24,6 +27,7 @@ class StorageService {
   static const planningStorageKey = 'weeklyPlanning';
   static const checkedItemsStorageKey = 'checkedShoppingItems';
   static const pantryIngredientsStorageKey = 'pantryIngredientNames';
+  static const mealHistoryStorageKey = 'mealHistoryEntries';
 
   Future<AppData> loadData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -34,6 +38,7 @@ class StorageService {
     final savedPantryIngredients = prefs.getStringList(
       pantryIngredientsStorageKey,
     );
+    final savedMealHistory = prefs.getString(mealHistoryStorageKey);
 
     final List<Recipe> loadedRecipes = [];
     final Map<String, String> loadedPlanning = {};
@@ -41,6 +46,7 @@ class StorageService {
     final loadedPantryIngredients = savedPantryIngredients == null
         ? normalizePantryIngredientNames(defaultPantryIngredientNames)
         : normalizePantryIngredientNames(savedPantryIngredients);
+    final List<MealHistoryEntry> loadedMealHistoryEntries = [];
 
     if (savedRecipes != null) {
       final decodedRecipes = jsonDecode(savedRecipes) as List;
@@ -62,11 +68,22 @@ class StorageService {
       loadedCheckedItems.addAll(savedCheckedItems);
     }
 
+    if (savedMealHistory != null) {
+      final decodedMealHistory = jsonDecode(savedMealHistory) as List;
+
+      for (final item in decodedMealHistory) {
+        loadedMealHistoryEntries.add(
+          MealHistoryEntry.fromJson(Map<String, dynamic>.from(item as Map)),
+        );
+      }
+    }
+
     return AppData(
       recipes: loadedRecipes,
       weeklyPlanning: loadedPlanning,
       checkedShoppingItems: loadedCheckedItems,
       pantryIngredientNames: loadedPantryIngredients,
+      mealHistoryEntries: loadedMealHistoryEntries,
     );
   }
 
@@ -75,6 +92,7 @@ class StorageService {
     required Map<String, String> weeklyPlanning,
     required Set<String> checkedShoppingItems,
     required List<String> pantryIngredientNames,
+    required List<MealHistoryEntry> mealHistoryEntries,
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -83,6 +101,9 @@ class StorageService {
     );
 
     final planningJson = jsonEncode(weeklyPlanning);
+    final mealHistoryJson = jsonEncode(
+      mealHistoryEntries.map((entry) => entry.toJson()).toList(),
+    );
 
     await prefs.setString(recipesStorageKey, recipesJson);
     await prefs.setString(planningStorageKey, planningJson);
@@ -94,5 +115,6 @@ class StorageService {
       pantryIngredientsStorageKey,
       normalizePantryIngredientNames(pantryIngredientNames),
     );
+    await prefs.setString(mealHistoryStorageKey, mealHistoryJson);
   }
 }

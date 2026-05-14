@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import '../data/planning_entries.dart';
 import '../data/meal_slots.dart';
+import '../models/meal_history_entry.dart';
 import '../models/recipe.dart';
 import 'cooking_screen.dart';
 
@@ -24,6 +25,8 @@ class PlanningScreen extends StatelessWidget {
     required this.onGoToRecipes,
     required this.onSelectAccompaniment,
     required this.onRemoveAccompaniment,
+    required this.mealHistoryEntries,
+    required this.onRecordPlannedMeals,
   });
 
   final List<Recipe> recipes;
@@ -37,6 +40,8 @@ class PlanningScreen extends StatelessWidget {
   final Future<void> Function(String slotId, Recipe recipe)
   onSelectAccompaniment;
   final Future<void> Function(String slotId) onRemoveAccompaniment;
+  final List<MealHistoryEntry> mealHistoryEntries;
+  final Future<void> Function() onRecordPlannedMeals;
 
   void openCookingScreen(BuildContext context, Recipe recipe) {
     Navigator.of(context).push(
@@ -309,6 +314,16 @@ class PlanningScreen extends StatelessWidget {
     );
   }
 
+  void showMealHistorySheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return _MealHistorySheet(entries: mealHistoryEntries);
+      },
+    );
+  }
+
   IconData getMealIcon(String meal) {
     if (meal == 'Midi') {
       return Icons.wb_sunny_outlined;
@@ -516,6 +531,13 @@ class PlanningScreen extends StatelessWidget {
               : () async {
                   await confirmResetWeek(context);
                 },
+          onRecordPlannedMeals: weeklyPlanning.isEmpty
+              ? null
+              : onRecordPlannedMeals,
+          onShowMealHistory: () {
+            showMealHistorySheet(context);
+          },
+          mealHistoryEntriesCount: mealHistoryEntries.length,
         ),
         const SizedBox(height: 16),
         for (final day in mealSlotDays)
@@ -549,6 +571,9 @@ class _PlanningHeader extends StatelessWidget {
     required this.onFillEmptySlots,
     required this.onShare,
     required this.onReset,
+    required this.onRecordPlannedMeals,
+    required this.onShowMealHistory,
+    required this.mealHistoryEntriesCount,
   });
 
   final int plannedMealsCount;
@@ -556,6 +581,9 @@ class _PlanningHeader extends StatelessWidget {
   final Future<void> Function()? onFillEmptySlots;
   final Future<void> Function()? onShare;
   final Future<void> Function()? onReset;
+  final Future<void> Function()? onRecordPlannedMeals;
+  final VoidCallback onShowMealHistory;
+  final int mealHistoryEntriesCount;
 
   @override
   Widget build(BuildContext context) {
@@ -621,6 +649,16 @@ class _PlanningHeader extends StatelessWidget {
                 label: const Text('Partager'),
               ),
               OutlinedButton.icon(
+                onPressed: onRecordPlannedMeals,
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Réalisés'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onShowMealHistory,
+                icon: const Icon(Icons.history),
+                label: Text('Historique ($mealHistoryEntriesCount)'),
+              ),
+              OutlinedButton.icon(
                 onPressed: onReset,
                 icon: const Icon(Icons.refresh),
                 label: const Text('Reset'),
@@ -631,6 +669,61 @@ class _PlanningHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MealHistorySheet extends StatelessWidget {
+  const _MealHistorySheet({required this.entries});
+
+  final List<MealHistoryEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final sortedEntries = [...entries]
+      ..sort((a, b) => b.cookedAt.compareTo(a.cookedAt));
+    final recentEntries = sortedEntries.take(30).toList();
+
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+        shrinkWrap: true,
+        children: [
+          Text(
+            'Historique des repas',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          if (recentEntries.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Aucun repas réalisé enregistré pour le moment.'),
+              ),
+            )
+          else
+            for (final entry in recentEntries)
+              Card(
+                child: ListTile(
+                  leading: CircleAvatar(child: Text(entry.recipeEmoji)),
+                  title: Text(entry.recipeName),
+                  subtitle: Text(
+                    '${entry.slotLabel} - ${formatHistoryDate(entry.cookedAt)}',
+                  ),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+String formatHistoryDate(DateTime date) {
+  String twoDigits(int value) {
+    return value.toString().padLeft(2, '0');
+  }
+
+  return '${twoDigits(date.day)}/${twoDigits(date.month)}/${date.year}';
 }
 
 class _DayPlanningCard extends StatelessWidget {

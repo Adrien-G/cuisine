@@ -167,7 +167,8 @@ class _BackupScreenState extends State<BackupScreen> {
             '- ${importedData.recipes.length} recette(s)\n'
             '- ${importedData.weeklyPlanning.length} repas planifié(s)\n'
             '- ${importedData.checkedShoppingItems.length} article(s) coché(s)\n'
-            '- ${importedData.pantryIngredientNames.length} ingrédient(s) de stock maison\n\n'
+            '- ${importedData.pantryIngredientNames.length} ingrédient(s) de stock maison\n'
+            '- ${importedData.mealHistoryEntries.length} repas dans l’historique\n\n'
             'Attention : tes données actuelles seront remplacées.',
           ),
           actions: [
@@ -194,6 +195,7 @@ class _BackupScreenState extends State<BackupScreen> {
     final recipesCount = widget.appData.recipes.length;
     final planningCount = widget.appData.weeklyPlanning.length;
     final pantryIngredientCount = widget.appData.pantryIngredientNames.length;
+    final mealHistoryCount = widget.appData.mealHistoryEntries.length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Sauvegarde')),
@@ -216,6 +218,7 @@ class _BackupScreenState extends State<BackupScreen> {
                   Text('$recipesCount recette(s) enregistrée(s)'),
                   Text('$planningCount repas planifié(s)'),
                   Text('$pantryIngredientCount ingrédient(s) de stock maison'),
+                  Text('$mealHistoryCount repas dans l’historique'),
                 ],
               ),
             ),

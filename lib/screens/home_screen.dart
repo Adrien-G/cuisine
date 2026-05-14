@@ -404,6 +404,28 @@ class _HomeScreenState extends State<HomeScreen> {
     showSnackBar('La semaine a été réinitialisée.');
   }
 
+  Future<void> recordPlannedMealsAsCooked() async {
+    final result = await cuisineController.recordPlannedMealsAsCooked();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+
+    if (!result.hasPlannedRecipes) {
+      showSnackBar('Aucune recette planifiée à enregistrer.');
+      return;
+    }
+
+    if (!result.hasNewEntries) {
+      showSnackBar('Ces repas sont déjà dans l’historique.');
+      return;
+    }
+
+    showSnackBar('${result.addedEntriesCount} repas ajouté(s) à l’historique.');
+  }
+
   Future<void> fillEmptySlotsRandomly({bool isVacationMode = false}) async {
     final result = await cuisineController.fillEmptySlotsRandomly(
       isVacationMode: isVacationMode,
@@ -477,6 +499,8 @@ class _HomeScreenState extends State<HomeScreen> {
           onSelectAccompaniment: selectAccompanimentForSlot,
           onRemoveAccompaniment: removeAccompanimentFromSlot,
           onGoToRecipes: goToRecipes,
+          mealHistoryEntries: cuisineController.mealHistoryEntries,
+          onRecordPlannedMeals: recordPlannedMealsAsCooked,
         );
       case 2:
         return ShoppingListScreen(
