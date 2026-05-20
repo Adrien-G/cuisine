@@ -55,6 +55,7 @@ class PlanningScreen extends StatelessWidget {
         builder: (context) {
           return CookingScreen(
             recipe: recipe,
+            availableRecipes: recipes,
             sourcePlanningSlotId: slotId,
             onRecordCooked: onRecordCookedRecipe,
           );

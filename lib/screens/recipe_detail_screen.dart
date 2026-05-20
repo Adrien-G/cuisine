@@ -10,12 +10,14 @@ class RecipeDetailScreen extends StatelessWidget {
   const RecipeDetailScreen({
     super.key,
     required this.recipe,
+    required this.recipes,
     required this.onEditRecipe,
     required this.onDeleteRecipe,
     this.onRecordCookedRecipe,
   });
 
   final Recipe recipe;
+  final List<Recipe> recipes;
   final Future<void> Function(Recipe recipe) onEditRecipe;
   final Future<void> Function(Recipe recipe) onDeleteRecipe;
   final Future<bool> Function({
@@ -130,6 +132,7 @@ class RecipeDetailScreen extends StatelessWidget {
                   builder: (context) {
                     return CookingScreen(
                       recipe: recipe,
+                      availableRecipes: recipes,
                       onRecordCooked: onRecordCookedRecipe,
                     );
                   },
@@ -241,6 +244,7 @@ class RecipeDetailScreen extends StatelessWidget {
                         builder: (context) {
                           return CookingScreen(
                             recipe: recipe,
+                            availableRecipes: recipes,
                             onRecordCooked: onRecordCookedRecipe,
                           );
                         },

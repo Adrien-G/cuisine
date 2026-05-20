@@ -1,10 +1,7 @@
 const String defaultRecipeEmoji = '🍽️';
 
 class RecipeEmojiCategory {
-  const RecipeEmojiCategory({
-    required this.label,
-    required this.emojis,
-  });
+  const RecipeEmojiCategory({required this.label, required this.emojis});
 
   final String label;
   final List<String> emojis;
@@ -13,18 +10,7 @@ class RecipeEmojiCategory {
 const List<RecipeEmojiCategory> recipeEmojiCategories = [
   RecipeEmojiCategory(
     label: 'Général',
-    emojis: [
-      '🍽️',
-      '🥘',
-      '🍲',
-      '🍛',
-      '🍜',
-      '🥣',
-      '🫕',
-      '🍱',
-      '🥡',
-      '🧂',
-    ],
+    emojis: ['🍽️', '🥘', '🍲', '🍛', '🍜', '🥣', '🫕', '🍱', '🥡', '🧂'],
   ),
   RecipeEmojiCategory(
     label: 'Pâtes, riz & féculents',
@@ -62,41 +48,15 @@ const List<RecipeEmojiCategory> recipeEmojiCategories = [
   ),
   RecipeEmojiCategory(
     label: 'Fromages & produits laitiers',
-    emojis: [
-      '🧀',
-      '🥛',
-      '🧈',
-      '🫕',
-      '🍦',
-      '🍨',
-    ],
+    emojis: ['🧀', '🥛', '🧈', '🫕', '🍦', '🍨'],
   ),
   RecipeEmojiCategory(
     label: 'Viandes & œufs',
-    emojis: [
-      '🍗',
-      '🍖',
-      '🥩',
-      '🥓',
-      '🌭',
-      '🍔',
-      '🍳',
-      '🥚',
-    ],
+    emojis: ['🍗', '🍖', '🥩', '🥓', '🌭', '🍔', '🍳', '🥚'],
   ),
   RecipeEmojiCategory(
     label: 'Poissons & fruits de mer',
-    emojis: [
-      '🐟',
-      '🍣',
-      '🍤',
-      '🦐',
-      '🦞',
-      '🦀',
-      '🦪',
-      '🐙',
-      '🦑',
-    ],
+    emojis: ['🐟', '🍣', '🍤', '🦐', '🦞', '🦀', '🦪', '🐙', '🦑'],
   ),
   RecipeEmojiCategory(
     label: 'Légumes & salades',

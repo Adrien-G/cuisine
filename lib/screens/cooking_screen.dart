@@ -5,6 +5,7 @@ import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../data/recipe_tags.dart';
 import '../models/recipe.dart';
 
 class CookingStep {
@@ -58,11 +59,13 @@ class CookingScreen extends StatefulWidget {
   const CookingScreen({
     super.key,
     required this.recipe,
+    this.availableRecipes = const [],
     this.sourcePlanningSlotId,
     this.onRecordCooked,
   });
 
   final Recipe recipe;
+  final List<Recipe> availableRecipes;
   final String? sourcePlanningSlotId;
   final Future<bool> Function({
     required Recipe recipe,
@@ -78,6 +81,8 @@ class CookingScreen extends StatefulWidget {
 
 class _CookingScreenState extends State<CookingScreen> {
   int currentStepIndex = 0;
+  late List<CookingStep> activeCookingSteps;
+  final Set<String> insertedReusablePreparationIds = {};
 
   late final ConfettiController confettiController;
   late final AudioPlayer timerAudioPlayer;
@@ -88,8 +93,8 @@ class _CookingScreenState extends State<CookingScreen> {
   int nextTimerId = 0;
   bool isTimerAlertPlaying = false;
 
-  List<String> get recipePreparationSteps {
-    final cleanedSteps = widget.recipe.steps.trim();
+  List<String> splitPreparationSteps(String steps) {
+    final cleanedSteps = steps.trim();
 
     if (cleanedSteps.isEmpty || cleanedSteps == 'À compléter.') {
       return [];
@@ -118,7 +123,7 @@ class _CookingScreenState extends State<CookingScreen> {
         .toList();
   }
 
-  List<CookingStep> get cookingSteps {
+  List<CookingStep> buildInitialCookingSteps() {
     final ingredientLines = widget.recipe.ingredients
         .map((ingredient) => '• ${ingredient.displayText}')
         .join('\n');
@@ -140,24 +145,31 @@ class _CookingScreenState extends State<CookingScreen> {
     ];
   }
 
-  bool get hasSteps => cookingSteps.isNotEmpty;
+  List<String> get recipePreparationSteps {
+    return splitPreparationSteps(widget.recipe.steps);
+  }
+
+  List<CookingStep> get cookingSteps => activeCookingSteps;
+
+  bool get hasSteps => activeCookingSteps.isNotEmpty;
 
   bool get canGoPrevious => currentStepIndex > 0;
 
-  bool get isLastStep => currentStepIndex == cookingSteps.length - 1;
+  bool get isLastStep => currentStepIndex == activeCookingSteps.length - 1;
 
   double get progress {
     if (!hasSteps) {
       return 0;
     }
 
-    return (currentStepIndex + 1) / cookingSteps.length;
+    return (currentStepIndex + 1) / activeCookingSteps.length;
   }
 
   @override
   void initState() {
     super.initState();
 
+    activeCookingSteps = buildInitialCookingSteps();
     confettiController = ConfettiController(
       duration: const Duration(seconds: 10),
     );
@@ -403,6 +415,75 @@ class _CookingScreenState extends State<CookingScreen> {
     return buffer.toString();
   }
 
+  List<Recipe> getReusablePreparationMatches(CookingStep step) {
+    final normalizedStep = normalizeReusablePreparationText(step.text);
+
+    return widget.availableRecipes.where((recipe) {
+      if (recipe.id == widget.recipe.id ||
+          insertedReusablePreparationIds.contains(recipe.id) ||
+          !recipe.tags.contains(reusablePreparationTag)) {
+        return false;
+      }
+
+      return getReusablePreparationTerms(recipe).any((term) {
+        return term.isNotEmpty && normalizedStep.contains(term);
+      });
+    }).toList();
+  }
+
+  List<String> getReusablePreparationTerms(Recipe recipe) {
+    final normalizedName = normalizeReusablePreparationText(recipe.name);
+    final terms = <String>{normalizedName};
+
+    for (final prefix in ['sauce ', 'préparation ', 'preparation ']) {
+      if (normalizedName.startsWith(prefix)) {
+        terms.add(normalizedName.substring(prefix.length).trim());
+      }
+    }
+
+    for (final word in normalizedName.split(' ')) {
+      if (word.length >= 5) {
+        terms.add(word);
+      }
+    }
+
+    return terms.where((term) => term.isNotEmpty).toList();
+  }
+
+  String normalizeReusablePreparationText(String value) {
+    return normalizeTimerSuggestionText(value)
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  void insertReusablePreparation(Recipe preparation) {
+    final preparationSteps = splitPreparationSteps(preparation.steps);
+
+    if (preparationSteps.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'La préparation "${preparation.name}" ne contient pas encore d’étapes.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      activeCookingSteps.insertAll(currentStepIndex + 1, [
+        for (final step in preparationSteps)
+          CookingStep(title: preparation.name, text: step),
+      ]);
+      insertedReusablePreparationIds.add(preparation.id);
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Étapes de ${preparation.name} ajoutées.')),
+    );
+  }
+
   Future<void> openTimerSettings({CookingTimer? timer}) async {
     final settings = await showDialog<_TimerSettings>(
       context: context,
@@ -528,6 +609,9 @@ class _CookingScreenState extends State<CookingScreen> {
   Widget build(BuildContext context) {
     final steps = cookingSteps;
     final currentStep = hasSteps ? steps[currentStepIndex] : null;
+    final reusablePreparationMatches = currentStep == null
+        ? <Recipe>[]
+        : getReusablePreparationMatches(currentStep);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Préparation')),
@@ -557,7 +641,9 @@ class _CookingScreenState extends State<CookingScreen> {
                       step: currentStep,
                       stepNumber: currentStepIndex + 1,
                     ),
+                    reusablePreparationMatches: reusablePreparationMatches,
                     onStartSuggestedTimer: startSuggestedTimer,
+                    onInsertReusablePreparation: insertReusablePreparation,
                   ),
               ],
             ),
@@ -932,14 +1018,18 @@ class _CurrentStepCard extends StatelessWidget {
     required this.stepTitle,
     required this.stepText,
     required this.timerSuggestions,
+    required this.reusablePreparationMatches,
     required this.onStartSuggestedTimer,
+    required this.onInsertReusablePreparation,
   });
 
   final int stepNumber;
   final String stepText;
   final String stepTitle;
   final List<CookingTimerSuggestion> timerSuggestions;
+  final List<Recipe> reusablePreparationMatches;
   final void Function(CookingTimerSuggestion suggestion) onStartSuggestedTimer;
+  final void Function(Recipe recipe) onInsertReusablePreparation;
 
   @override
   Widget build(BuildContext context) {
@@ -1003,6 +1093,24 @@ class _CurrentStepCard extends StatelessWidget {
                       onPressed: () {
                         onStartSuggestedTimer(suggestion);
                       },
+                    ),
+                ],
+              ),
+            ],
+            if (reusablePreparationMatches.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final preparation in reusablePreparationMatches)
+                    ActionChip(
+                      avatar: const Icon(Icons.add_circle_outline, size: 18),
+                      label: Text('Insérer les étapes de ${preparation.name}'),
+                      onPressed: () {
+                        onInsertReusablePreparation(preparation);
+                      },
+                      visualDensity: VisualDensity.compact,
                     ),
                 ],
               ),

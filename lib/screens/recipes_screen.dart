@@ -137,6 +137,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
         builder: (context) {
           return RecipeDetailScreen(
             recipe: recipe,
+            recipes: widget.recipes,
             onEditRecipe: widget.onEditRecipe,
             onDeleteRecipe: widget.onDeleteRecipe,
             onRecordCookedRecipe: widget.onRecordCookedRecipe,
