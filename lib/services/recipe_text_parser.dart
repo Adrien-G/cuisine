@@ -183,6 +183,12 @@ class RecipeTextParser {
       'emmental',
       'cheddar',
       'feta',
+      'gruyere',
+      'gruyère',
+      'lardon',
+      'pate feuilletee',
+      'pâte feuilletée',
+      'ricotta',
     ];
 
     const meatFish = [
@@ -193,7 +199,6 @@ class RecipeTextParser {
       'veau',
       'agneau',
       'jambon',
-      'lardon',
       'chorizo',
       'saumon',
       'thon',
@@ -224,12 +229,12 @@ class RecipeTextParser {
       return 'Fruits & légumes';
     }
 
-    if (_containsAnyIngredientTerm(normalizedName, pantry)) {
-      return 'Épicerie';
-    }
-
     if (_containsAnyIngredientTerm(normalizedName, fresh)) {
       return 'Frais';
+    }
+
+    if (_containsAnyIngredientTerm(normalizedName, pantry)) {
+      return 'Épicerie';
     }
 
     if (_containsAnyIngredientTerm(normalizedName, meatFish)) {

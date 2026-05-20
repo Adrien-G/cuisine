@@ -15,6 +15,10 @@ void main() {
     test('conserve les produits frais habituels en frais', () {
       expect(RecipeTextParser.guessCategory('beurre'), 'Frais');
       expect(RecipeTextParser.guessCategory('crème fraîche'), 'Frais');
+      expect(RecipeTextParser.guessCategory('gruyère'), 'Frais');
+      expect(RecipeTextParser.guessCategory('lardons'), 'Frais');
+      expect(RecipeTextParser.guessCategory('pâte feuilletée'), 'Frais');
+      expect(RecipeTextParser.guessCategory('ricotta'), 'Frais');
     });
   });
 }

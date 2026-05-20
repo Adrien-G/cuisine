@@ -254,21 +254,6 @@ class _HomeScreenState extends State<HomeScreen> {
     showSnackBar('Recette ajoutée : ${newRecipe.name}');
   }
 
-  Future<void> toggleFavoriteRecipe(Recipe recipe) async {
-    final updatedRecipe = await cuisineController.toggleFavoriteRecipe(recipe);
-
-    if (updatedRecipe == null || !mounted) {
-      return;
-    }
-
-    setState(() {});
-    showSnackBar(
-      updatedRecipe.isFavorite
-          ? 'Recette ajoutée aux favoris.'
-          : 'Recette retirée des favoris.',
-    );
-  }
-
   Future<void> openEditRecipeScreen(Recipe recipeToEdit) async {
     final updatedRecipe = await Navigator.of(context).push<Recipe>(
       MaterialPageRoute(
@@ -501,7 +486,6 @@ class _HomeScreenState extends State<HomeScreen> {
           onAddRecipe: openAddRecipeScreen,
           onEditRecipe: openEditRecipeScreen,
           onDeleteRecipe: deleteRecipe,
-          onToggleFavorite: toggleFavoriteRecipe,
           onRecordCookedRecipe: recordCookedRecipe,
         );
       case 1:
@@ -539,7 +523,6 @@ class _HomeScreenState extends State<HomeScreen> {
           onAddRecipe: openAddRecipeScreen,
           onEditRecipe: openEditRecipeScreen,
           onDeleteRecipe: deleteRecipe,
-          onToggleFavorite: toggleFavoriteRecipe,
           onRecordCookedRecipe: recordCookedRecipe,
         );
     }

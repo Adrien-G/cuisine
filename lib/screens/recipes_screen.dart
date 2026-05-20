@@ -12,7 +12,6 @@ class RecipesScreen extends StatefulWidget {
     required this.onAddRecipe,
     required this.onEditRecipe,
     required this.onDeleteRecipe,
-    required this.onToggleFavorite,
     required this.onRecordCookedRecipe,
   });
 
@@ -20,7 +19,6 @@ class RecipesScreen extends StatefulWidget {
   final VoidCallback onAddRecipe;
   final Future<void> Function(Recipe recipe) onEditRecipe;
   final Future<void> Function(Recipe recipe) onDeleteRecipe;
-  final Future<void> Function(Recipe recipe) onToggleFavorite;
   final Future<bool> Function({
     required Recipe recipe,
     required DateTime cookedAt,
@@ -70,7 +68,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
     final recipeMetadata =
         '${recipe.prepTimeMinutes ?? ''} ${recipe.cookTimeMinutes ?? ''} '
                 '${recipe.prepTimeText} ${recipe.cookTimeText} ${recipe.durationText} '
-                '${recipe.difficulty}'
+                '${recipe.ratingText} ${recipe.reviewStatus}'
             .toLowerCase();
 
     final ingredientsText = recipe.ingredients
@@ -267,7 +265,6 @@ class _RecipesScreenState extends State<RecipesScreen> {
             onDeleteRecipe: (recipe) async {
               await confirmDeleteRecipe(context, recipe);
             },
-            onToggleFavorite: widget.onToggleFavorite,
           ),
       ],
     );
@@ -483,7 +480,6 @@ class _RecipeListCard extends StatelessWidget {
     required this.onOpenDetails,
     required this.onEditRecipe,
     required this.onDeleteRecipe,
-    required this.onToggleFavorite,
   });
 
   final Recipe recipe;
@@ -491,7 +487,6 @@ class _RecipeListCard extends StatelessWidget {
   final Future<void> Function(Recipe recipe) onOpenDetails;
   final Future<void> Function(Recipe recipe) onEditRecipe;
   final Future<void> Function(Recipe recipe) onDeleteRecipe;
-  final Future<void> Function(Recipe recipe) onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -536,20 +531,6 @@ class _RecipeListCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         height: 1.15,
                       ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: recipe.isFavorite
-                        ? 'Retirer des favoris'
-                        : 'Ajouter aux favoris',
-                    onPressed: () async {
-                      await onToggleFavorite(recipe);
-                    },
-                    icon: Icon(
-                      recipe.isFavorite ? Icons.star : Icons.star_border,
-                      color: recipe.isFavorite
-                          ? Colors.amber
-                          : colorScheme.onSurfaceVariant,
                     ),
                   ),
                   PopupMenuButton<String>(
@@ -603,7 +584,8 @@ class _RecipeListCard extends StatelessWidget {
                 ),
               ],
               if (recipe.tags.isNotEmpty ||
-                  seasonality.hasProduceIngredients) ...[
+                  seasonality.hasProduceIngredients ||
+                  recipe.reviewStatus.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
@@ -613,6 +595,15 @@ class _RecipeListCard extends StatelessWidget {
                       _CompactChip(
                         icon: Icons.eco_outlined,
                         label: '${seasonality.score}% saison',
+                      ),
+                    _CompactChip(
+                      icon: Icons.fact_check_outlined,
+                      label: recipe.reviewStatus,
+                    ),
+                    if (recipe.ratingText.isNotEmpty)
+                      _CompactChip(
+                        icon: Icons.star_rate_outlined,
+                        label: recipe.ratingText,
                       ),
                     for (final tag in recipe.tags.take(3))
                       Chip(

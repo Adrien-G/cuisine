@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../data/ingredient_categories.dart';
 import '../data/ingredient_units.dart';
-import '../data/recipe_difficulties.dart';
+import '../data/recipe_ratings.dart';
+import '../data/recipe_review_statuses.dart';
 import '../data/recipe_tags.dart';
 import '../models/ingredient.dart';
 import '../models/recipe.dart';
@@ -29,7 +30,8 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   final List<_IngredientControllers> ingredientRows = [];
   final Set<String> selectedTags = {};
 
-  String selectedDifficulty = defaultRecipeDifficulty;
+  int? selectedRating;
+  String selectedReviewStatus = defaultRecipeReviewStatus;
   String selectedEmoji = defaultRecipeEmoji;
   bool get isEditing => widget.initialRecipe != null && !widget.isDraft;
   @override
@@ -47,9 +49,14 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       }
       selectedTags.addAll(initialRecipe.tags);
 
-      selectedDifficulty = recipeDifficulties.contains(initialRecipe.difficulty)
-          ? initialRecipe.difficulty
-          : defaultRecipeDifficulty;
+      selectedRating = recipeRatings.contains(initialRecipe.rating)
+          ? initialRecipe.rating
+          : null;
+
+      selectedReviewStatus =
+          recipeReviewStatuses.contains(initialRecipe.reviewStatus)
+          ? initialRecipe.reviewStatus
+          : defaultRecipeReviewStatus;
 
       selectedEmoji = recipeEmojiOptions.contains(initialRecipe.emoji)
           ? initialRecipe.emoji
@@ -253,9 +260,9 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       tags: buildOrderedTags(),
       prepTimeMinutes: parseTime(prepTimeController.text),
       cookTimeMinutes: parseTime(cookTimeController.text),
-      difficulty: selectedDifficulty,
+      rating: selectedRating,
+      reviewStatus: selectedReviewStatus,
       emoji: selectedEmoji,
-      isFavorite: widget.initialRecipe?.isFavorite ?? false,
     );
     Navigator.of(context).pop(recipe);
   }
@@ -360,19 +367,43 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      initialValue: selectedRating ?? 0,
+                      decoration: const InputDecoration(
+                        labelText: 'Note du plat',
+                        prefixIcon: Icon(Icons.star_rate_outlined),
+                      ),
+                      items: [
+                        const DropdownMenuItem<int>(
+                          value: 0,
+                          child: Text('Non noté'),
+                        ),
+                        for (final rating in recipeRatings)
+                          DropdownMenuItem<int>(
+                            value: rating,
+                            child: Text('$rating/10'),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          selectedRating = value == 0 ? null : value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue:
-                          recipeDifficulties.contains(selectedDifficulty)
-                          ? selectedDifficulty
-                          : defaultRecipeDifficulty,
+                          recipeReviewStatuses.contains(selectedReviewStatus)
+                          ? selectedReviewStatus
+                          : defaultRecipeReviewStatus,
                       decoration: const InputDecoration(
-                        labelText: 'Difficulté',
-                        prefixIcon: Icon(Icons.signal_cellular_alt),
+                        labelText: 'Statut de vérification',
+                        prefixIcon: Icon(Icons.fact_check_outlined),
                       ),
-                      items: recipeDifficulties.map((difficulty) {
+                      items: recipeReviewStatuses.map((status) {
                         return DropdownMenuItem(
-                          value: difficulty,
-                          child: Text(difficulty),
+                          value: status,
+                          child: Text(status),
                         );
                       }).toList(),
                       onChanged: (value) {
@@ -381,7 +412,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                         }
 
                         setState(() {
-                          selectedDifficulty = value;
+                          selectedReviewStatus = value;
                         });
                       },
                     ),

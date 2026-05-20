@@ -1,20 +1,21 @@
-import '../data/recipe_difficulties.dart';
 import '../data/recipe_emojis.dart';
+import '../data/recipe_ratings.dart';
+import '../data/recipe_review_statuses.dart';
 import 'ingredient.dart';
 
 class Recipe {
-const Recipe({
-  required this.id,
-  required this.name,
-  required this.ingredients,
-  required this.steps,
-  this.tags = const [],
-  this.prepTimeMinutes,
-  this.cookTimeMinutes,
-  this.difficulty = defaultRecipeDifficulty,
-  this.emoji = defaultRecipeEmoji,
-  this.isFavorite = false,
-});
+  const Recipe({
+    required this.id,
+    required this.name,
+    required this.ingredients,
+    required this.steps,
+    this.tags = const [],
+    this.prepTimeMinutes,
+    this.cookTimeMinutes,
+    this.rating,
+    this.reviewStatus = defaultRecipeReviewStatus,
+    this.emoji = defaultRecipeEmoji,
+  });
 
   final String id;
   final String name;
@@ -22,19 +23,16 @@ const Recipe({
   final String steps;
   final List<String> tags;
 
-
   /// Temps actif : découper, mélanger, préparer, surveiller activement.
   final int? prepTimeMinutes;
 
   /// Temps passif : cuisson, mijotage, four, repos.
   final int? cookTimeMinutes;
 
-  final String difficulty;
+  final int? rating;
+  final String reviewStatus;
   final String emoji;
-  final bool isFavorite;
-  
-  
-  
+
   /// Compatibilité avec les anciens écrans / anciennes données.
   /// Le total est calculé automatiquement.
   int? get durationMinutes {
@@ -49,44 +47,46 @@ const Recipe({
     return total;
   }
 
-Recipe copyWith({
-  String? id,
-  String? name,
-  List<Ingredient>? ingredients,
-  String? steps,
-  List<String>? tags,
-  int? prepTimeMinutes,
-  int? cookTimeMinutes,
-  String? difficulty,
-  String? emoji,
-  bool? isFavorite,
-}) {
-  return Recipe(
-    id: id ?? this.id,
-    name: name ?? this.name,
-    ingredients: ingredients ?? this.ingredients,
-    steps: steps ?? this.steps,
-    tags: tags ?? this.tags,
-    prepTimeMinutes: prepTimeMinutes ?? this.prepTimeMinutes,
-    cookTimeMinutes: cookTimeMinutes ?? this.cookTimeMinutes,
-    difficulty: difficulty ?? this.difficulty,
-    emoji: emoji ?? this.emoji,
-    isFavorite: isFavorite ?? this.isFavorite,
-  );
-}
+  Recipe copyWith({
+    String? id,
+    String? name,
+    List<Ingredient>? ingredients,
+    String? steps,
+    List<String>? tags,
+    int? prepTimeMinutes,
+    int? cookTimeMinutes,
+    int? rating,
+    String? reviewStatus,
+    String? emoji,
+  }) {
+    return Recipe(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      ingredients: ingredients ?? this.ingredients,
+      steps: steps ?? this.steps,
+      tags: tags ?? this.tags,
+      prepTimeMinutes: prepTimeMinutes ?? this.prepTimeMinutes,
+      cookTimeMinutes: cookTimeMinutes ?? this.cookTimeMinutes,
+      rating: rating ?? this.rating,
+      reviewStatus: reviewStatus ?? this.reviewStatus,
+      emoji: emoji ?? this.emoji,
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'name': name,
-      'ingredients': ingredients.map((ingredient) => ingredient.toJson()).toList(),
+      'ingredients': ingredients
+          .map((ingredient) => ingredient.toJson())
+          .toList(),
       'steps': steps,
       'tags': tags,
       'prepTimeMinutes': prepTimeMinutes,
       'cookTimeMinutes': cookTimeMinutes,
-      'difficulty': difficulty,
+      'rating': rating,
+      'reviewStatus': reviewStatus,
       'emoji': emoji,
-      'isFavorite': isFavorite,
     };
   }
 
@@ -98,14 +98,13 @@ Recipe copyWith({
         return Ingredient(name: item);
       }
 
-      return Ingredient.fromJson(
-        Map<String, dynamic>.from(item as Map),
-      );
+      return Ingredient.fromJson(Map<String, dynamic>.from(item as Map));
     }).toList();
 
     final rawLegacyDuration = json['durationMinutes'];
     final rawPrepTime = json['prepTimeMinutes'];
     final rawCookTime = json['cookTimeMinutes'];
+    final rawRating = (json['rating'] as num?)?.toInt();
 
     return Recipe(
       id: json['id'] as String,
@@ -118,14 +117,17 @@ Recipe copyWith({
       // si l’ancienne durée existe, on la met en temps de préparation.
       prepTimeMinutes: rawPrepTime == null
           ? rawLegacyDuration == null
-              ? null
-              : (rawLegacyDuration as num).toInt()
+                ? null
+                : (rawLegacyDuration as num).toInt()
           : (rawPrepTime as num).toInt(),
 
-      cookTimeMinutes: rawCookTime == null ? null : (rawCookTime as num).toInt(),
-      difficulty: json['difficulty'] as String? ?? defaultRecipeDifficulty,
+      cookTimeMinutes: rawCookTime == null
+          ? null
+          : (rawCookTime as num).toInt(),
+      rating: recipeRatings.contains(rawRating) ? rawRating : null,
+      reviewStatus:
+          json['reviewStatus'] as String? ?? defaultRecipeReviewStatus,
       emoji: json['emoji'] as String? ?? defaultRecipeEmoji,
-      isFavorite: json['isFavorite'] as bool? ?? false,
     );
   }
 
@@ -174,12 +176,14 @@ Recipe copyWith({
     return '${formatMinutes(total)} total';
   }
 
-  String get difficultyText {
-    if (difficulty == defaultRecipeDifficulty) {
+  String get ratingText {
+    final ratingValue = rating;
+
+    if (ratingValue == null) {
       return '';
     }
 
-    return difficulty;
+    return '$ratingValue/10';
   }
 
   String get timeSummaryText {
@@ -203,8 +207,8 @@ Recipe copyWith({
       parts.add(timeSummaryText);
     }
 
-    if (difficultyText.isNotEmpty) {
-      parts.add(difficultyText);
+    if (ratingText.isNotEmpty) {
+      parts.add(ratingText);
     }
 
     return parts.join(' • ');

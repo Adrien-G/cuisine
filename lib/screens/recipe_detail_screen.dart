@@ -358,10 +358,10 @@ class _RecipeHeader extends StatelessWidget {
                   ),
                 ),
               ],
-              if (recipe.difficultyText.isNotEmpty) ...[
+              if (recipe.ratingText.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
-                  recipe.difficultyText,
+                  recipe.ratingText,
                   style: TextStyle(
                     color: colorScheme.onPrimaryContainer,
                     fontSize: 15,
@@ -369,6 +369,15 @@ class _RecipeHeader extends StatelessWidget {
                   ),
                 ),
               ],
+              const SizedBox(height: 4),
+              Text(
+                recipe.reviewStatus,
+                style: TextStyle(
+                  color: colorScheme.onPrimaryContainer,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
           if (hasSeasonalIngredients) ...[

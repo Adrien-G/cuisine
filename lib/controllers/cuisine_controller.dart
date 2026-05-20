@@ -272,9 +272,9 @@ class CuisineController {
       recipe.tags.join('|'),
       recipe.prepTimeMinutes?.toString() ?? '',
       recipe.cookTimeMinutes?.toString() ?? '',
-      recipe.difficulty,
+      recipe.rating?.toString() ?? '',
+      recipe.reviewStatus,
       recipe.emoji,
-      recipe.isFavorite.toString(),
       for (final ingredient in recipe.ingredients)
         [
           ingredient.name,
@@ -289,24 +289,6 @@ class CuisineController {
   Future<void> addRecipe(Recipe newRecipe) async {
     recipes.add(newRecipe);
     await saveData();
-  }
-
-  Future<Recipe?> toggleFavoriteRecipe(Recipe recipe) async {
-    final recipeIndex = recipes.indexWhere((item) => item.id == recipe.id);
-
-    if (recipeIndex == -1) {
-      return null;
-    }
-
-    final updatedRecipe = recipes[recipeIndex].copyWith(
-      isFavorite: !recipes[recipeIndex].isFavorite,
-    );
-
-    recipes[recipeIndex] = updatedRecipe;
-
-    await saveData();
-
-    return updatedRecipe;
   }
 
   Future<void> updateRecipe(Recipe updatedRecipe) async {
