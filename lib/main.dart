@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'theme/app_theme.dart';
 import 'screens/home_screen.dart';
 
@@ -15,7 +16,14 @@ class CuisineApp extends StatelessWidget {
     return MaterialApp(
       title: 'Cuisine',
       debugShowCheckedModeBanner: false,
-      theme : AppTheme.lightTheme,
+      theme: AppTheme.lightTheme,
+      locale: const Locale('fr', 'FR'),
+      supportedLocales: const [Locale('fr', 'FR')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: const HomeScreen(),
     );
   }

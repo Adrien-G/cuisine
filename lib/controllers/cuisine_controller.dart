@@ -48,6 +48,16 @@ class RecordPlannedMealsResult {
   bool get hasNewEntries => addedEntriesCount > 0;
 }
 
+class RecordCookedRecipeResult {
+  const RecordCookedRecipeResult({
+    required this.wasAdded,
+    required this.wasPlanningMealMarkedDone,
+  });
+
+  final bool wasAdded;
+  final bool wasPlanningMealMarkedDone;
+}
+
 class MergeBackupResult {
   const MergeBackupResult({
     required this.addedRecipesCount,
@@ -553,6 +563,100 @@ class CuisineController {
       addedEntriesCount: entriesToAdd.length,
       hasPlannedRecipes: true,
     );
+  }
+
+  Future<RecordCookedRecipeResult> recordCookedRecipe({
+    required Recipe recipe,
+    required DateTime cookedAt,
+    required String mealLabel,
+    String? sourcePlanningSlotId,
+  }) async {
+    final entry = MealHistoryEntry(
+      id: buildMealHistoryEntryId(
+        cookedAt: cookedAt,
+        slotId: mealLabel,
+        recipeId: recipe.id,
+      ),
+      recipeId: recipe.id,
+      recipeName: recipe.name,
+      recipeEmoji: recipe.emoji,
+      slotId: mealLabel,
+      slotLabel: mealLabel,
+      cookedAt: cookedAt,
+    );
+
+    final wasAdded = !mealHistoryEntries.any((item) => item.id == entry.id);
+
+    if (wasAdded) {
+      mealHistoryEntries.add(entry);
+      sortMealHistoryEntries();
+    }
+
+    final wasPlanningMealMarkedDone = markPlanningSlotAsDoneIfMatching(
+      sourcePlanningSlotId: sourcePlanningSlotId,
+      recipe: recipe,
+      cookedAt: cookedAt,
+      mealLabel: mealLabel,
+    );
+
+    if (wasAdded || wasPlanningMealMarkedDone) {
+      await saveData();
+    }
+
+    return RecordCookedRecipeResult(
+      wasAdded: wasAdded,
+      wasPlanningMealMarkedDone: wasPlanningMealMarkedDone,
+    );
+  }
+
+  bool markPlanningSlotAsDoneIfMatching({
+    required String? sourcePlanningSlotId,
+    required Recipe recipe,
+    required DateTime cookedAt,
+    required String mealLabel,
+  }) {
+    if (sourcePlanningSlotId == null) {
+      return false;
+    }
+
+    MealSlot? slot;
+
+    for (final item in mealSlots) {
+      if (item.id == sourcePlanningSlotId) {
+        slot = item;
+        break;
+      }
+    }
+
+    if (slot == null || slot.meal != mealLabel) {
+      return false;
+    }
+
+    final expectedDate = getCookedAtForSlot(slot, getCurrentWeekStart());
+    final isExpectedDate =
+        cookedAt.year == expectedDate.year &&
+        cookedAt.month == expectedDate.month &&
+        cookedAt.day == expectedDate.day;
+
+    if (!isExpectedDate) {
+      return false;
+    }
+
+    final currentPlanningValue = weeklyPlanning[sourcePlanningSlotId];
+    final plannedRecipeIds = getRecipeIdsFromPlanningValue(
+      currentPlanningValue,
+    );
+
+    if (!plannedRecipeIds.contains(recipe.id)) {
+      return false;
+    }
+
+    weeklyPlanning[sourcePlanningSlotId] = buildSpecialMealValue(
+      completedMealLabel,
+    );
+    checkedShoppingItems.clear();
+
+    return true;
   }
 
   List<MealHistoryEntry> buildMealHistoryEntriesFromPlanning() {

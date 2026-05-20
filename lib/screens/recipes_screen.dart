@@ -13,6 +13,7 @@ class RecipesScreen extends StatefulWidget {
     required this.onEditRecipe,
     required this.onDeleteRecipe,
     required this.onToggleFavorite,
+    required this.onRecordCookedRecipe,
   });
 
   final List<Recipe> recipes;
@@ -20,6 +21,13 @@ class RecipesScreen extends StatefulWidget {
   final Future<void> Function(Recipe recipe) onEditRecipe;
   final Future<void> Function(Recipe recipe) onDeleteRecipe;
   final Future<void> Function(Recipe recipe) onToggleFavorite;
+  final Future<bool> Function({
+    required Recipe recipe,
+    required DateTime cookedAt,
+    required String mealLabel,
+    String? sourcePlanningSlotId,
+  })
+  onRecordCookedRecipe;
 
   @override
   State<RecipesScreen> createState() => _RecipesScreenState();
@@ -133,6 +141,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
             recipe: recipe,
             onEditRecipe: widget.onEditRecipe,
             onDeleteRecipe: widget.onDeleteRecipe,
+            onRecordCookedRecipe: widget.onRecordCookedRecipe,
           );
         },
       ),
@@ -258,7 +267,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
             onDeleteRecipe: (recipe) async {
               await confirmDeleteRecipe(context, recipe);
             },
-             onToggleFavorite: widget.onToggleFavorite,
+            onToggleFavorite: widget.onToggleFavorite,
           ),
       ],
     );

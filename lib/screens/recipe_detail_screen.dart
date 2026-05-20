@@ -12,11 +12,19 @@ class RecipeDetailScreen extends StatelessWidget {
     required this.recipe,
     required this.onEditRecipe,
     required this.onDeleteRecipe,
+    this.onRecordCookedRecipe,
   });
 
   final Recipe recipe;
   final Future<void> Function(Recipe recipe) onEditRecipe;
   final Future<void> Function(Recipe recipe) onDeleteRecipe;
+  final Future<bool> Function({
+    required Recipe recipe,
+    required DateTime cookedAt,
+    required String mealLabel,
+    String? sourcePlanningSlotId,
+  })?
+  onRecordCookedRecipe;
 
   List<String> getSeasonalMatchesForRecipe() {
     final seasonalIngredients = getCurrentSeasonalIngredients();
@@ -120,7 +128,10 @@ class RecipeDetailScreen extends StatelessWidget {
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) {
-                    return CookingScreen(recipe: recipe);
+                    return CookingScreen(
+                      recipe: recipe,
+                      onRecordCooked: onRecordCookedRecipe,
+                    );
                   },
                 ),
               );
@@ -228,7 +239,10 @@ class RecipeDetailScreen extends StatelessWidget {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (context) {
-                          return CookingScreen(recipe: recipe);
+                          return CookingScreen(
+                            recipe: recipe,
+                            onRecordCooked: onRecordCookedRecipe,
+                          );
                         },
                       ),
                     );

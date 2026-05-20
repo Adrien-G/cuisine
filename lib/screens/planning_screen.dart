@@ -26,7 +26,7 @@ class PlanningScreen extends StatelessWidget {
     required this.onSelectAccompaniment,
     required this.onRemoveAccompaniment,
     required this.mealHistoryEntries,
-    required this.onRecordPlannedMeals,
+    required this.onRecordCookedRecipe,
   });
 
   final List<Recipe> recipes;
@@ -41,13 +41,23 @@ class PlanningScreen extends StatelessWidget {
   onSelectAccompaniment;
   final Future<void> Function(String slotId) onRemoveAccompaniment;
   final List<MealHistoryEntry> mealHistoryEntries;
-  final Future<void> Function() onRecordPlannedMeals;
+  final Future<bool> Function({
+    required Recipe recipe,
+    required DateTime cookedAt,
+    required String mealLabel,
+    String? sourcePlanningSlotId,
+  })
+  onRecordCookedRecipe;
 
-  void openCookingScreen(BuildContext context, Recipe recipe) {
+  void openCookingScreen(BuildContext context, Recipe recipe, String slotId) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) {
-          return CookingScreen(recipe: recipe);
+          return CookingScreen(
+            recipe: recipe,
+            sourcePlanningSlotId: slotId,
+            onRecordCooked: onRecordCookedRecipe,
+          );
         },
       ),
     );
@@ -531,9 +541,6 @@ class PlanningScreen extends StatelessWidget {
               : () async {
                   await confirmResetWeek(context);
                 },
-          onRecordPlannedMeals: weeklyPlanning.isEmpty
-              ? null
-              : onRecordPlannedMeals,
           onShowMealHistory: () {
             showMealHistorySheet(context);
           },
@@ -554,8 +561,8 @@ class PlanningScreen extends StatelessWidget {
             onSelectSlot: (slot) {
               openRecipeSelector(context, slot);
             },
-            onStartCooking: (recipe) {
-              openCookingScreen(context, recipe);
+            onStartCooking: (slot, recipe) {
+              openCookingScreen(context, recipe, slot.id);
             },
             onRemoveSlot: onRemoveRecipe,
           ),
@@ -571,7 +578,6 @@ class _PlanningHeader extends StatelessWidget {
     required this.onFillEmptySlots,
     required this.onShare,
     required this.onReset,
-    required this.onRecordPlannedMeals,
     required this.onShowMealHistory,
     required this.mealHistoryEntriesCount,
   });
@@ -581,7 +587,6 @@ class _PlanningHeader extends StatelessWidget {
   final Future<void> Function()? onFillEmptySlots;
   final Future<void> Function()? onShare;
   final Future<void> Function()? onReset;
-  final Future<void> Function()? onRecordPlannedMeals;
   final VoidCallback onShowMealHistory;
   final int mealHistoryEntriesCount;
 
@@ -647,11 +652,6 @@ class _PlanningHeader extends StatelessWidget {
                 onPressed: onShare,
                 icon: const Icon(Icons.share),
                 label: const Text('Partager'),
-              ),
-              OutlinedButton.icon(
-                onPressed: onRecordPlannedMeals,
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Réalisés'),
               ),
               OutlinedButton.icon(
                 onPressed: onShowMealHistory,
@@ -747,7 +747,7 @@ class _DayPlanningCard extends StatelessWidget {
   final IconData Function(String meal) getMealIcon;
   final void Function(MealSlot slot) onSelectSlot;
   final Future<void> Function(String slotId) onRemoveSlot;
-  final void Function(Recipe recipe) onStartCooking;
+  final void Function(MealSlot slot, Recipe recipe) onStartCooking;
   final Recipe? Function(String slotId) getAccompanimentForSlot;
   final void Function(MealSlot slot) onSelectAccompaniment;
 
@@ -794,7 +794,7 @@ class _DayPlanningCard extends StatelessWidget {
                 onStartCooking: getRecipeForSlot(slot.id) == null
                     ? null
                     : () {
-                        onStartCooking(getRecipeForSlot(slot.id)!);
+                        onStartCooking(slot, getRecipeForSlot(slot.id)!);
                       },
                 onRemove:
                     getRecipeForSlot(slot.id) == null &&

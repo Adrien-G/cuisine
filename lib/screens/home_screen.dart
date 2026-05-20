@@ -420,26 +420,26 @@ class _HomeScreenState extends State<HomeScreen> {
     showSnackBar('La semaine a été réinitialisée.');
   }
 
-  Future<void> recordPlannedMealsAsCooked() async {
-    final result = await cuisineController.recordPlannedMealsAsCooked();
+  Future<bool> recordCookedRecipe({
+    required Recipe recipe,
+    required DateTime cookedAt,
+    required String mealLabel,
+    String? sourcePlanningSlotId,
+  }) async {
+    final result = await cuisineController.recordCookedRecipe(
+      recipe: recipe,
+      cookedAt: cookedAt,
+      mealLabel: mealLabel,
+      sourcePlanningSlotId: sourcePlanningSlotId,
+    );
 
     if (!mounted) {
-      return;
+      return result.wasAdded;
     }
 
     setState(() {});
 
-    if (!result.hasPlannedRecipes) {
-      showSnackBar('Aucune recette planifiée à enregistrer.');
-      return;
-    }
-
-    if (!result.hasNewEntries) {
-      showSnackBar('Ces repas sont déjà dans l’historique.');
-      return;
-    }
-
-    showSnackBar('${result.addedEntriesCount} repas ajouté(s) à l’historique.');
+    return result.wasAdded;
   }
 
   Future<void> fillEmptySlotsRandomly({bool isVacationMode = false}) async {
@@ -502,6 +502,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onEditRecipe: openEditRecipeScreen,
           onDeleteRecipe: deleteRecipe,
           onToggleFavorite: toggleFavoriteRecipe,
+          onRecordCookedRecipe: recordCookedRecipe,
         );
       case 1:
         return PlanningScreen(
@@ -516,7 +517,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onRemoveAccompaniment: removeAccompanimentFromSlot,
           onGoToRecipes: goToRecipes,
           mealHistoryEntries: cuisineController.mealHistoryEntries,
-          onRecordPlannedMeals: recordPlannedMealsAsCooked,
+          onRecordCookedRecipe: recordCookedRecipe,
         );
       case 2:
         return ShoppingListScreen(
@@ -539,6 +540,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onEditRecipe: openEditRecipeScreen,
           onDeleteRecipe: deleteRecipe,
           onToggleFavorite: toggleFavoriteRecipe,
+          onRecordCookedRecipe: recordCookedRecipe,
         );
     }
   }

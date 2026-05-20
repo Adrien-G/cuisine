@@ -55,9 +55,22 @@ class CookingTimerSuggestion {
 }
 
 class CookingScreen extends StatefulWidget {
-  const CookingScreen({super.key, required this.recipe});
+  const CookingScreen({
+    super.key,
+    required this.recipe,
+    this.sourcePlanningSlotId,
+    this.onRecordCooked,
+  });
 
   final Recipe recipe;
+  final String? sourcePlanningSlotId;
+  final Future<bool> Function({
+    required Recipe recipe,
+    required DateTime cookedAt,
+    required String mealLabel,
+    String? sourcePlanningSlotId,
+  })?
+  onRecordCooked;
 
   @override
   State<CookingScreen> createState() => _CookingScreenState();
@@ -494,17 +507,10 @@ class _CookingScreenState extends State<CookingScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Bravo !'),
-          content: Text('La recette "${widget.recipe.name}" est terminée.'),
-          actions: [
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
-              child: const Text('Terminer'),
-            ),
-          ],
+        return _CookingFinishedDialog(
+          recipe: widget.recipe,
+          sourcePlanningSlotId: widget.sourcePlanningSlotId,
+          onRecordCooked: widget.onRecordCooked,
         );
       },
     );
@@ -588,6 +594,189 @@ class _CookingScreenState extends State<CookingScreen> {
               ),
             )
           : null,
+    );
+  }
+}
+
+class _CookingFinishedDialog extends StatefulWidget {
+  const _CookingFinishedDialog({
+    required this.recipe,
+    required this.sourcePlanningSlotId,
+    required this.onRecordCooked,
+  });
+
+  final Recipe recipe;
+  final String? sourcePlanningSlotId;
+  final Future<bool> Function({
+    required Recipe recipe,
+    required DateTime cookedAt,
+    required String mealLabel,
+    String? sourcePlanningSlotId,
+  })?
+  onRecordCooked;
+
+  @override
+  State<_CookingFinishedDialog> createState() => _CookingFinishedDialogState();
+}
+
+class _CookingFinishedDialogState extends State<_CookingFinishedDialog> {
+  late DateTime cookedAt;
+  late String mealLabel;
+  bool isSaving = false;
+  bool hasSaved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    cookedAt = DateTime.now();
+    mealLabel = suggestedMealLabel(cookedAt);
+  }
+
+  String suggestedMealLabel(DateTime date) {
+    if (date.hour < 15) {
+      return 'Midi';
+    }
+
+    return 'Soir';
+  }
+
+  String formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  String formatSavedLabel() {
+    return '${formatDate(cookedAt)} - $mealLabel';
+  }
+
+  Future<void> pickCookedDate() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: cookedAt,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 7)),
+    );
+
+    if (pickedDate == null) {
+      return;
+    }
+
+    setState(() {
+      cookedAt = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        cookedAt.hour,
+        cookedAt.minute,
+      );
+    });
+  }
+
+  Future<void> recordCookedRecipe() async {
+    final onRecordCooked = widget.onRecordCooked;
+
+    if (onRecordCooked == null || isSaving || hasSaved) {
+      return;
+    }
+
+    setState(() {
+      isSaving = true;
+    });
+
+    final wasAdded = await onRecordCooked(
+      recipe: widget.recipe,
+      cookedAt: cookedAt,
+      mealLabel: mealLabel,
+      sourcePlanningSlotId: widget.sourcePlanningSlotId,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      isSaving = false;
+      hasSaved = true;
+    });
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          wasAdded
+              ? 'Repas ajouté à l’historique.'
+              : 'Ce repas est déjà dans l’historique.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Bravo !'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('La recette "${widget.recipe.name}" est terminée.'),
+          if (widget.onRecordCooked != null) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Ajouter à l’historique ?',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: hasSaved ? null : pickCookedDate,
+              icon: const Icon(Icons.calendar_month_outlined),
+              label: Text(formatDate(cookedAt)),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'Midi', label: Text('Midi')),
+                ButtonSegment(value: 'Soir', label: Text('Soir')),
+              ],
+              selected: {mealLabel},
+              onSelectionChanged: hasSaved
+                  ? null
+                  : (values) {
+                      setState(() {
+                        mealLabel = values.first;
+                      });
+                    },
+            ),
+            const SizedBox(height: 10),
+            if (hasSaved)
+              Text(
+                'Enregistré pour ${formatSavedLabel()}.',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              )
+            else
+              FilledButton.icon(
+                onPressed: isSaving ? null : recordCookedRecipe,
+                icon: isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.history),
+                label: const Text('Ajouter à l’historique'),
+              ),
+          ],
+        ],
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () {
+            Navigator.of(context).pop(true);
+          },
+          child: const Text('Terminer'),
+        ),
+      ],
     );
   }
 }
