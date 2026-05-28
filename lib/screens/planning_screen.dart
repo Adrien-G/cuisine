@@ -458,7 +458,7 @@ class PlanningScreen extends StatelessWidget {
     buffer.writeln();
 
     for (final day in mealSlotDays) {
-      buffer.writeln(day);
+      final dayLines = <String>[];
 
       for (final slot in getMealSlotsForDay(day)) {
         final recipe = getRecipeForSlot(slot.id);
@@ -466,24 +466,29 @@ class PlanningScreen extends StatelessWidget {
         final specialMealLabel = getSpecialMealForSlot(slot.id);
 
         if (specialMealLabel != null) {
-          buffer.writeln('${slot.meal} : $specialMealLabel');
-        } else if (recipe == null) {
-          buffer.writeln('${slot.meal} : Non planifié');
-        } else {
-          final recipeText = recipe.timeSummaryText.isEmpty
-              ? recipe.name
-              : '${recipe.name} (${recipe.timeSummaryText})';
+          dayLines.add('${slot.meal} : $specialMealLabel');
+          continue;
+        }
 
-          if (accompaniment == null) {
-            buffer.writeln('${slot.meal} : $recipeText');
-          } else {
-            buffer.writeln(
-              '${slot.meal} : $recipeText + ${accompaniment.name}',
-            );
-          }
+        if (recipe == null) {
+          continue;
+        }
+
+        if (accompaniment == null) {
+          dayLines.add('${slot.meal} : ${recipe.name}');
+        } else {
+          dayLines.add('${slot.meal} : ${recipe.name} + ${accompaniment.name}');
         }
       }
 
+      if (dayLines.isEmpty) {
+        continue;
+      }
+
+      buffer.writeln(day);
+      for (final line in dayLines) {
+        buffer.writeln(line);
+      }
       buffer.writeln();
     }
 

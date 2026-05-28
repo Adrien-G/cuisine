@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/recipe_review_statuses.dart';
 import '../data/seasonal_ingredients.dart';
 import '../services/seasonality_service.dart';
 import '../models/recipe.dart';
@@ -493,6 +494,7 @@ class _RecipeListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final seasonality = SeasonalityService.analyzeRecipe(recipe);
+    final needsReview = recipe.reviewStatus == defaultRecipeReviewStatus;
 
     return Card(
       child: InkWell(
@@ -572,6 +574,10 @@ class _RecipeListCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (needsReview) ...[
+                const SizedBox(height: 8),
+                const _ImportedRecipeWarning(),
+              ],
               if (recipe.timeSummaryText.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
@@ -586,7 +592,8 @@ class _RecipeListCard extends StatelessWidget {
               ],
               if (recipe.tags.isNotEmpty ||
                   seasonality.hasProduceIngredients ||
-                  recipe.reviewStatus.isNotEmpty) ...[
+                  (!needsReview && recipe.reviewStatus.isNotEmpty) ||
+                  recipe.ratingText.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
@@ -597,10 +604,11 @@ class _RecipeListCard extends StatelessWidget {
                         icon: Icons.eco_outlined,
                         label: '${seasonality.score}% saison',
                       ),
-                    _CompactChip(
-                      icon: Icons.fact_check_outlined,
-                      label: recipe.reviewStatus,
-                    ),
+                    if (!needsReview)
+                      _CompactChip(
+                        icon: Icons.fact_check_outlined,
+                        label: recipe.reviewStatus,
+                      ),
                     if (recipe.ratingText.isNotEmpty)
                       _CompactChip(
                         icon: Icons.star_rate_outlined,
@@ -624,6 +632,42 @@ class _RecipeListCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ImportedRecipeWarning extends StatelessWidget {
+  const _ImportedRecipeWarning();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.warning_amber_outlined,
+            size: 17,
+            color: colorScheme.onErrorContainer,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'À relire',
+            style: TextStyle(
+              color: colorScheme.onErrorContainer,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }

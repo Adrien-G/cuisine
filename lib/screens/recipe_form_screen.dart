@@ -8,6 +8,7 @@ import '../data/recipe_tags.dart';
 import '../models/ingredient.dart';
 import '../models/recipe.dart';
 import '../data/recipe_emojis.dart';
+import '../services/preparation_step_analyzer.dart';
 
 class RecipeFormScreen extends StatefulWidget {
   const RecipeFormScreen({super.key, this.initialRecipe, this.isDraft = false});
@@ -217,6 +218,58 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       final removedController = stepControllers.removeAt(index);
       removedController.dispose();
     });
+  }
+
+  List<String> getCurrentIngredientNames() {
+    return ingredientRows
+        .map((row) => row.nameController.text.trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+  }
+
+  Future<void> analyzePreparationSteps() async {
+    final suggestions = PreparationStepAnalyzer.findImplicitPreparations(
+      ingredientNames: getCurrentIngredientNames(),
+      steps: buildPreparationSteps(),
+    );
+
+    if (suggestions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aucune préparation implicite détectée.')),
+      );
+      return;
+    }
+
+    final shouldInsert = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return _PreparationAnalysisDialog(suggestions: suggestions);
+      },
+    );
+
+    if (shouldInsert != true) {
+      return;
+    }
+
+    final preparationStep = PreparationStepAnalyzer.buildPreparationStep(
+      suggestions,
+    );
+
+    setState(() {
+      stepControllers.insert(0, TextEditingController(text: preparationStep));
+    });
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${suggestions.length} préparation(s) préalable(s) ajoutée(s).',
+        ),
+      ),
+    );
   }
 
   void saveRecipe() {
@@ -527,6 +580,12 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: analyzePreparationSteps,
+                      icon: const Icon(Icons.fact_check_outlined),
+                      label: const Text('Analyser la préparation'),
+                    ),
+                    const SizedBox(height: 12),
                     for (int index = 0; index < stepControllers.length; index++)
                       _PreparationStepInputCard(
                         key: ValueKey(stepControllers[index]),
@@ -632,6 +691,58 @@ class _FormHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PreparationAnalysisDialog extends StatelessWidget {
+  const _PreparationAnalysisDialog({required this.suggestions});
+
+  final List<PreparationStepSuggestion> suggestions;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Préparations préalables'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Ces éléments semblent être utilisés déjà préparés. Tu peux ajouter une étape au début de la recette.',
+            ),
+            const SizedBox(height: 12),
+            for (final suggestion in suggestions)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.check_circle_outline, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(suggestion.text)),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop(false);
+          },
+          child: const Text('Ignorer'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.of(context).pop(true);
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('Ajouter l’étape'),
+        ),
+      ],
     );
   }
 }
