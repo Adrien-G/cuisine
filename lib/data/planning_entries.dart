@@ -2,12 +2,10 @@ const String specialMealPrefix = 'special_meal|';
 const String composedMealPrefix = 'composed_meal|';
 
 const String defaultSpecialMealLabel = 'Repas à l’extérieur';
-const String completedMealLabel = 'Repas réalisé';
 
 const List<String> quickSpecialMealLabels = [
   'Restaurant',
   'Repas à l’extérieur',
-  completedMealLabel,
   'Invités',
   'Restes',
   'Pas de repas',

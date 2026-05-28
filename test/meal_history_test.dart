@@ -73,8 +73,8 @@ void main() {
 
       expect(firstResult.wasAdded, isTrue);
       expect(secondResult.wasAdded, isFalse);
-      expect(firstResult.wasPlanningMealMarkedDone, isFalse);
-      expect(secondResult.wasPlanningMealMarkedDone, isFalse);
+      expect(firstResult.wasPlanningMealCleared, isFalse);
+      expect(secondResult.wasPlanningMealCleared, isFalse);
       expect(controller.mealHistoryEntries.single.recipeName, 'Soupe');
       expect(controller.mealHistoryEntries.single.slotLabel, 'Soir');
       expect(controller.mealHistoryEntries.single.cookedAt, cookedAt);
@@ -82,46 +82,40 @@ void main() {
     },
   );
 
-  test(
-    'marque le repas du planning comme realise quand la date correspond',
-    () async {
-      final storage = _FakeStorageService();
-      final controller = CuisineController(storageService: storage);
+  test('vide le repas du planning quand la date correspond', () async {
+    final storage = _FakeStorageService();
+    final controller = CuisineController(storageService: storage);
 
-      const recipe = Recipe(
-        id: 'pasta',
-        name: 'Pâtes',
-        emoji: 'P',
-        ingredients: [Ingredient(name: 'pâtes')],
-        steps: 'Cuire.',
-      );
+    const recipe = Recipe(
+      id: 'pasta',
+      name: 'Pâtes',
+      emoji: 'P',
+      ingredients: [Ingredient(name: 'pâtes')],
+      steps: 'Cuire.',
+    );
 
-      controller.recipes.add(recipe);
-      controller.weeklyPlanning['lundi_soir'] = buildRecipePlanningValue(
-        recipeId: recipe.id,
-      );
+    controller.recipes.add(recipe);
+    controller.weeklyPlanning['lundi_soir'] = buildRecipePlanningValue(
+      recipeId: recipe.id,
+    );
 
-      final cookedAt = controller.getCookedAtForSlot(
-        mealSlots.firstWhere((slot) => slot.id == 'lundi_soir'),
-        controller.getCurrentWeekStart(),
-      );
+    final cookedAt = controller.getCookedAtForSlot(
+      mealSlots.firstWhere((slot) => slot.id == 'lundi_soir'),
+      controller.getCurrentWeekStart(),
+    );
 
-      final result = await controller.recordCookedRecipe(
-        recipe: recipe,
-        cookedAt: cookedAt,
-        mealLabel: 'Soir',
-        sourcePlanningSlotId: 'lundi_soir',
-      );
+    final result = await controller.recordCookedRecipe(
+      recipe: recipe,
+      cookedAt: cookedAt,
+      mealLabel: 'Soir',
+      sourcePlanningSlotId: 'lundi_soir',
+    );
 
-      expect(result.wasAdded, isTrue);
-      expect(result.wasPlanningMealMarkedDone, isTrue);
-      expect(
-        getSpecialMealLabel(controller.weeklyPlanning['lundi_soir']!),
-        completedMealLabel,
-      );
-      expect(storage.saveCount, 1);
-    },
-  );
+    expect(result.wasAdded, isTrue);
+    expect(result.wasPlanningMealCleared, isTrue);
+    expect(controller.weeklyPlanning.containsKey('lundi_soir'), isFalse);
+    expect(storage.saveCount, 1);
+  });
 }
 
 class _FakeStorageService extends StorageService {

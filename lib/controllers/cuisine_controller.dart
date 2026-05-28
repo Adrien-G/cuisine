@@ -51,11 +51,11 @@ class RecordPlannedMealsResult {
 class RecordCookedRecipeResult {
   const RecordCookedRecipeResult({
     required this.wasAdded,
-    required this.wasPlanningMealMarkedDone,
+    required this.wasPlanningMealCleared,
   });
 
   final bool wasAdded;
-  final bool wasPlanningMealMarkedDone;
+  final bool wasPlanningMealCleared;
 }
 
 class MergeBackupResult {
@@ -574,24 +574,24 @@ class CuisineController {
       sortMealHistoryEntries();
     }
 
-    final wasPlanningMealMarkedDone = markPlanningSlotAsDoneIfMatching(
+    final wasPlanningMealCleared = clearPlanningSlotIfMatchingCookedMeal(
       sourcePlanningSlotId: sourcePlanningSlotId,
       recipe: recipe,
       cookedAt: cookedAt,
       mealLabel: mealLabel,
     );
 
-    if (wasAdded || wasPlanningMealMarkedDone) {
+    if (wasAdded || wasPlanningMealCleared) {
       await saveData();
     }
 
     return RecordCookedRecipeResult(
       wasAdded: wasAdded,
-      wasPlanningMealMarkedDone: wasPlanningMealMarkedDone,
+      wasPlanningMealCleared: wasPlanningMealCleared,
     );
   }
 
-  bool markPlanningSlotAsDoneIfMatching({
+  bool clearPlanningSlotIfMatchingCookedMeal({
     required String? sourcePlanningSlotId,
     required Recipe recipe,
     required DateTime cookedAt,
@@ -633,9 +633,7 @@ class CuisineController {
       return false;
     }
 
-    weeklyPlanning[sourcePlanningSlotId] = buildSpecialMealValue(
-      completedMealLabel,
-    );
+    weeklyPlanning.remove(sourcePlanningSlotId);
     checkedShoppingItems.clear();
 
     return true;
