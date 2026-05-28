@@ -23,7 +23,11 @@ class BackupScreen extends StatefulWidget {
   final AppData appData;
   final AppData Function() getAppData;
   final Future<void> Function(AppData appData) onRestoreData;
-  final Future<MergeBackupResult> Function(AppData appData) onMergeData;
+  final Future<MergeBackupResult> Function(
+    AppData appData, {
+    MergePlanningMode planningMode,
+  })
+  onMergeData;
 
   @override
   State<BackupScreen> createState() => _BackupScreenState();

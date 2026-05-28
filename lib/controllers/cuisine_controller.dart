@@ -12,6 +12,8 @@ import '../services/storage_service.dart';
 
 enum SelectAccompanimentResult { added, missingMainRecipe, fullDish }
 
+enum MergePlanningMode { fillEmptySlots, replace }
+
 class FillPlanningResult {
   const FillPlanningResult({
     required this.addedMealsCount,
@@ -181,7 +183,10 @@ class CuisineController {
     await saveData();
   }
 
-  Future<MergeBackupResult> mergeDataFromBackup(AppData importedData) async {
+  Future<MergeBackupResult> mergeDataFromBackup(
+    AppData importedData, {
+    MergePlanningMode planningMode = MergePlanningMode.fillEmptySlots,
+  }) async {
     var addedRecipesCount = 0;
     var updatedRecipesCount = 0;
     var addedPlanningEntriesCount = 0;
@@ -218,11 +223,21 @@ class CuisineController {
       importedData.weeklyPlanning,
     );
 
-    for (final entry in migratedImportedPlanning.entries) {
-      if (!weeklyPlanning.containsKey(entry.key)) {
-        weeklyPlanning[entry.key] = entry.value;
-        addedPlanningEntriesCount++;
-      }
+    switch (planningMode) {
+      case MergePlanningMode.fillEmptySlots:
+        for (final entry in migratedImportedPlanning.entries) {
+          if (!weeklyPlanning.containsKey(entry.key)) {
+            weeklyPlanning[entry.key] = entry.value;
+            addedPlanningEntriesCount++;
+          }
+        }
+      case MergePlanningMode.replace:
+        if (!mapEquals(weeklyPlanning, migratedImportedPlanning)) {
+          weeklyPlanning
+            ..clear()
+            ..addAll(migratedImportedPlanning);
+          addedPlanningEntriesCount = migratedImportedPlanning.length;
+        }
     }
 
     final mergedPantryIngredientNames = [
@@ -284,6 +299,20 @@ class CuisineController {
           ingredient.includeInShoppingList.toString(),
         ].join('~'),
     ].join('||');
+  }
+
+  bool mapEquals(Map<String, String> first, Map<String, String> second) {
+    if (first.length != second.length) {
+      return false;
+    }
+
+    for (final entry in first.entries) {
+      if (second[entry.key] != entry.value) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   Future<void> addRecipe(Recipe newRecipe) async {

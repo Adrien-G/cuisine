@@ -87,8 +87,14 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<MergeBackupResult> mergeDataFromBackup(AppData importedData) async {
-    final result = await cuisineController.mergeDataFromBackup(importedData);
+  Future<MergeBackupResult> mergeDataFromBackup(
+    AppData importedData, {
+    MergePlanningMode planningMode = MergePlanningMode.fillEmptySlots,
+  }) async {
+    final result = await cuisineController.mergeDataFromBackup(
+      importedData,
+      planningMode: planningMode,
+    );
 
     if (!mounted) {
       return result;

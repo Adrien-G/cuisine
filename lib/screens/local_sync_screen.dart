@@ -11,6 +11,15 @@ import '../controllers/cuisine_controller.dart';
 import '../services/backup_service.dart';
 import '../services/storage_service.dart';
 
+enum _LocalSyncMode { bidirectional, sendOnly }
+
+class _LocalSyncPayload {
+  const _LocalSyncPayload({required this.url, required this.mode});
+
+  final String url;
+  final _LocalSyncMode mode;
+}
+
 class LocalSyncScreen extends StatefulWidget {
   const LocalSyncScreen({
     super.key,
@@ -19,7 +28,11 @@ class LocalSyncScreen extends StatefulWidget {
   });
 
   final AppData Function() getAppData;
-  final Future<MergeBackupResult> Function(AppData appData) onMergeData;
+  final Future<MergeBackupResult> Function(
+    AppData appData, {
+    MergePlanningMode planningMode,
+  })
+  onMergeData;
 
   @override
   State<LocalSyncScreen> createState() => _LocalSyncScreenState();
@@ -32,6 +45,7 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
   MergeBackupResult? lastMergeResult;
   bool isStartingHost = false;
   bool isJoining = false;
+  _LocalSyncMode syncMode = _LocalSyncMode.bidirectional;
 
   @override
   void dispose() {
@@ -125,7 +139,9 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
     try {
       final rawJson = await utf8.decoder.bind(request).join();
       final importedData = BackupService.parseBackupJson(rawJson);
-      final mergeResult = await widget.onMergeData(importedData);
+      final mergeResult = syncMode == _LocalSyncMode.bidirectional
+          ? await widget.onMergeData(importedData)
+          : null;
       final responseJson = BackupService.createBackupJson(widget.getAppData());
 
       request.response.statusCode = HttpStatus.ok;
@@ -139,7 +155,9 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
 
       setState(() {
         lastMergeResult = mergeResult;
-        statusText = 'Synchro reçue et fusionnée.';
+        statusText = syncMode == _LocalSyncMode.bidirectional
+            ? 'Synchro reçue et fusionnée.'
+            : 'Données envoyées sans importer l’autre appareil.';
       });
     } catch (_) {
       request.response.statusCode = HttpStatus.badRequest;
@@ -182,11 +200,11 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
     });
 
     try {
-      final url = parseSyncUrl(payload);
+      final syncPayload = parseSyncPayload(payload);
       final backupJson = BackupService.createBackupJson(widget.getAppData());
       final response = await http
           .post(
-            Uri.parse(url),
+            Uri.parse(syncPayload.url),
             headers: {'content-type': 'application/json; charset=utf-8'},
             body: backupJson,
           )
@@ -197,7 +215,12 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
       }
 
       final hostData = BackupService.parseBackupJson(response.body);
-      final mergeResult = await widget.onMergeData(hostData);
+      final mergeResult = await widget.onMergeData(
+        hostData,
+        planningMode: syncPayload.mode == _LocalSyncMode.sendOnly
+            ? MergePlanningMode.replace
+            : MergePlanningMode.fillEmptySlots,
+      );
 
       if (!mounted) {
         return;
@@ -225,11 +248,14 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
     }
   }
 
-  String parseSyncUrl(String payload) {
+  _LocalSyncPayload parseSyncPayload(String payload) {
     final trimmedPayload = payload.trim();
 
     if (trimmedPayload.startsWith('http://')) {
-      return trimmedPayload;
+      return _LocalSyncPayload(
+        url: trimmedPayload,
+        mode: _LocalSyncMode.bidirectional,
+      );
     }
 
     final decoded = jsonDecode(trimmedPayload);
@@ -238,13 +264,19 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
       throw const FormatException('QR code invalide.');
     }
 
-    return decoded['url'] as String;
+    final rawMode = decoded['mode'] as String?;
+    final mode = rawMode == _LocalSyncMode.sendOnly.name
+        ? _LocalSyncMode.sendOnly
+        : _LocalSyncMode.bidirectional;
+
+    return _LocalSyncPayload(url: decoded['url'] as String, mode: mode);
   }
 
   String buildQrPayload() {
     return jsonEncode({
       'type': 'cuisine_local_sync',
       'version': 1,
+      'mode': syncMode.name,
       'url': syncUrl,
     });
   }
@@ -339,6 +371,36 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
                   const SizedBox(height: 8),
                   const Text(
                     'L’autre appareil scanne ce QR code pour échanger les recettes.',
+                  ),
+                  const SizedBox(height: 14),
+                  SegmentedButton<_LocalSyncMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: _LocalSyncMode.bidirectional,
+                        label: Text('Échanger'),
+                        icon: Icon(Icons.sync_alt_outlined),
+                      ),
+                      ButtonSegment(
+                        value: _LocalSyncMode.sendOnly,
+                        label: Text('Partager'),
+                        icon: Icon(Icons.upload_outlined),
+                      ),
+                    ],
+                    selected: {syncMode},
+                    onSelectionChanged: currentSyncUrl == null
+                        ? (values) {
+                            setState(() {
+                              syncMode = values.first;
+                            });
+                          }
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    syncMode == _LocalSyncMode.bidirectional
+                        ? 'Échange : les deux appareils fusionnent leurs nouveautés.'
+                        : 'Partager : cet appareil envoie ses données sans importer celles de l’autre.',
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 14),
                   if (currentSyncUrl == null)

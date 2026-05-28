@@ -86,6 +86,30 @@ void main() {
     expect(result.updatedRecipesCount, 1);
     expect(controller.recipes.single.name, 'Nouveau nom');
   });
+
+  test('remplace le planning quand le mode de fusion le demande', () async {
+    final storage = _FakeStorageService();
+    final controller = CuisineController(storageService: storage);
+
+    controller.weeklyPlanning['lundi_soir'] = 'local';
+
+    final importedData = AppData(
+      recipes: const [],
+      weeklyPlanning: const {'mardi_soir': 'remote'},
+      checkedShoppingItems: const {},
+      pantryIngredientNames: const [],
+      mealHistoryEntries: const [],
+    );
+
+    final result = await controller.mergeDataFromBackup(
+      importedData,
+      planningMode: MergePlanningMode.replace,
+    );
+
+    expect(result.addedPlanningEntriesCount, 1);
+    expect(controller.weeklyPlanning, {'mardi_soir': 'remote'});
+    expect(storage.saveCount, 1);
+  });
 }
 
 class _FakeStorageService extends StorageService {
